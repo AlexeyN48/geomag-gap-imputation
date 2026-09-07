@@ -1,0 +1,11 @@
+{
+ "arch": "segrnn",
+ "params": 114466,
+ "steps": 30000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.001,
+ "best_val": 11.042501139026296,
+ "scale": 25.5,
+ "seconds": 985
+}

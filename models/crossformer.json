@@ -1,0 +1,11 @@
+{
+ "arch": "crossformer",
+ "params": 16437957,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.001,
+ "best_val": 10.734922546211925,
+ "scale": 25.5,
+ "seconds": 10600
+}
