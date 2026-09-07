@@ -1,0 +1,14 @@
+{
+ "arch": "saits",
+ "params": 558616,
+ "steps": 12000,
+ "batch": 4,
+ "accum": 4,
+ "lr": 0.001,
+ "best_val": 8.655510446498308,
+ "scale": 25.7890625,
+ "kw": {},
+ "patch": 5,
+ "window": 12960,
+ "seconds": 9914
+}

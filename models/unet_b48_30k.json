@@ -1,0 +1,14 @@
+{
+ "arch": "unet",
+ "params": 9626213,
+ "steps": 30000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.001,
+ "best_val": 9.17547920463421,
+ "scale": 25.5,
+ "kw": {
+  "base": 48
+ },
+ "seconds": 1364
+}
