@@ -133,11 +133,11 @@ def run(args):
     if ck is not None:
         print(f"чекпойнт: {args.method}.pt  шаг={ck['step']}  "
               f"val при обучении={ck['val']:.3f} нТл")
-    years = C.load_split(args.split)
+    years = C.load_split(args.split, code=args.code)
     acts = {y: C.activity(F) for y, F in years.items()}
     rng = np.random.default_rng(C.SEED + 7)
     lengths = args.lengths or C.LENGTHS
-    setname = f"{C.CODE}_{args.split}"
+    setname = f"{args.code}_{args.split}"
 
     print(f"метод={args.method}  набор={setname} ({', '.join(map(str, sorted(years)))})"
           f"  n={args.n}  margin={C.MARGIN}")
@@ -191,6 +191,9 @@ def main():
                     help="классический метод (" + ", ".join(sorted(METHODS))
                          + ") либо имя чекпойнта из models/")
     ap.add_argument("--split", default="val", choices=sorted(C.SPLIT))
+    ap.add_argument("--code", default=C.CODE,
+                     help="код станции (префикс файлов data/<код>_<год>.npz); "
+                          "меняет и вход, и имя выходного дампа (dump_<метод>_<код>_<сплит>.npz)")
     ap.add_argument("--n", type=int, default=128)
     ap.add_argument("--lengths", type=int, nargs="+", default=None)
     ap.add_argument("--out", default=None)

@@ -33,8 +33,8 @@ def load_year(year, code=CODE):
     return np.load(p, allow_pickle=False)["F"].astype(np.float32)
 
 
-def load_split(name):
-    return {y: load_year(y) for y in SPLIT[name]}
+def load_split(name, code=CODE):
+    return {y: load_year(y, code=code) for y in SPLIT[name]}
 
 
 def activity(F, smooth=1440):
