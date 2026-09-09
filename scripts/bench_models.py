@@ -309,10 +309,179 @@ class CSDI(nn.Module):
         out = obs * cond + out * (1.0 - cond)
         return out.permute(0, 2, 1)                              # [B,WB,P]
 
+def _stack_forward(blocks, y, mask):
+    """Общий цикл backcast/forecast NHITS и N-BEATS (взят из forward() обеих
+    архитектур в neuralforecast дословно): реконструкция уточняется по
+    остатку блок за блоком, остаток обнуляется маской там, где входа не было.
+    y, mask — [Bc, WB] (Bc = B*NF: канал/патч-признак развёрнут в батч, веса
+    блока общие на всех каналах — тот же приём, что у DLinear.trend/season)."""
+    resid = y.flip(dims=(-1,))
+    mask_f = mask.flip(dims=(-1,))
+    forecast = y[:, -1:, None].repeat(1, y.shape[1], 1)
+    zero = torch.zeros(y.shape[0], 0, device=y.device)
+    for blk in blocks:
+        backcast, block_fc = blk(resid, zero, zero, zero)
+        resid = (resid - backcast) * mask_f
+        forecast = forecast + block_fc
+    return forecast[..., 0]
+
+
+class NHITS(nn.Module):
+    """Иерархическая интерполяция (блоки NHITSBlock из neuralforecast): несколько
+    MLP-блоков смотрят на один и тот же ряд с разным шагом пулинга (весь
+    участок сразу -> редко, почти без пулинга -> часто) и достраивают
+    недостающее кусочно-линейной интерполяцией по немногим узлам. Третий,
+    независимый способ проверить многомасштабность — рядом со свёрткой
+    (U-Net) и явным периодом (TimesNet).
+
+    Канал (P значений участка + 4 гармоники времени) идёт как отдельная
+    "серия" с общими весами блока, как во всех остальных обёртках здесь."""
+
+    def __init__(self, n_pool=(8, 4, 1), mlp=128, dropout=0.0, **kw):
+        super().__init__()
+        from neuralforecast.models.nhits import NHITSBlock, _IdentityBasis
+        blocks = []
+        for k in n_pool:
+            basis = _IdentityBasis(backcast_size=WB, forecast_size=WB,
+                                   interpolation_mode="linear", out_features=1)
+            n_theta = WB + max(WB // k, 1)
+            blocks.append(NHITSBlock(
+                input_size=WB, h=WB, n_theta=n_theta, mlp_units=[[mlp, mlp]],
+                basis=basis, futr_input_size=0, hist_input_size=0,
+                stat_input_size=0, n_pool_kernel_size=k, pooling_mode="MaxPool1d",
+                dropout_prob=dropout, activation="ReLU"))
+        self.blocks = nn.ModuleList(blocks)
+        self.proj = nn.Linear(NF, P)
+
+    def forward(self, X, M):
+        x = torch.cat([X, M[:, :, :P]], dim=2)[:, :, :NF]      # форма [B,WB,NF]
+        B = x.shape[0]
+        y = x.transpose(1, 2).reshape(B * NF, WB)               # канал -> батч
+        m = M[:, :, :NF].transpose(1, 2).reshape(B * NF, WB)
+        out = _stack_forward(self.blocks, y, m).reshape(B, NF, WB).transpose(1, 2)
+        return self.proj(out)                                    # [B,WB,P]
+
+
+class NBEATSx(nn.Module):
+    """Интерпретируемый N-BEATS: тренд (низкая степень полинома) + сезонность
+    (несколько гармоник суточной и годовой частоты) — явный компактный базис,
+    независимый от свёртки (U-Net) и от пулинга (NHITS) способ проверить
+    главную гипотезу задачи про суточный ход, да ещё и с разложением,
+    которое можно прочитать напрямую (вклад тренда отдельно от сезонности).
+
+    Базис свой, а не готовый TrendBasis/SeasonalityBasis из neuralforecast:
+    там число гармоник в SeasonalityBasis растёт вместе с forecast_size и не
+    зависит от параметра harmonics — при типичном для библиотеки горизонте
+    в десятки шагов это компактно, а на нашем участке в WB=1728 токенов
+    посчитанный по их формуле базис выходит порядка 1728 гармоник, то есть
+    вырождается почти в тождественную интерполяцию и ничего не даёт против
+    NHITS выше. Здесь число гармоник задаётся явно и не зависит от WB."""
+
+    def __init__(self, degree=3, n_harm_day=4, n_harm_year=2, mlp=256,
+                dropout=0.0, **kw):
+        super().__init__()
+        t = torch.arange(WB, dtype=torch.float32) / WB               # [0,1)
+        basis = [t ** i for i in range(degree + 1)]                   # тренд
+        day_k = WB * P / DAY                                          # циклов суток в участке
+        year_k = WB * P / YEAR
+        for k in range(1, n_harm_day + 1):
+            basis += [torch.sin(2 * np.pi * k * day_k * t),
+                     torch.cos(2 * np.pi * k * day_k * t)]
+        for k in range(1, n_harm_year + 1):
+            basis += [torch.sin(2 * np.pi * k * year_k * t),
+                     torch.cos(2 * np.pi * k * year_k * t)]
+        self.register_buffer("basis", torch.stack(basis))             # [Q,WB]
+        Q = self.basis.shape[0]
+        self.mlp = nn.Sequential(nn.Linear(WB, mlp), nn.ReLU(), nn.Dropout(dropout),
+                                 nn.Linear(mlp, mlp), nn.ReLU(), nn.Dropout(dropout),
+                                 nn.Linear(mlp, Q))
+        self.proj = nn.Linear(NF, P)
+
+    def forward(self, X, M):
+        x = torch.cat([X, M[:, :, :P]], dim=2)[:, :, :NF]
+        B = x.shape[0]
+        y = x.transpose(1, 2).reshape(B * NF, WB)                      # канал -> батч
+        theta = self.mlp(y)                                             # [B*NF,Q]
+        rec = theta @ self.basis                                        # [B*NF,WB]
+        out = rec.reshape(B, NF, WB).transpose(1, 2)
+        return self.proj(out)                                           # [B,WB,P]
+
+
+class TSMixerx(nn.Module):
+    """Смешивание по времени и по признакам MLP-слоями (MixingLayer из
+    neuralforecast), без внимания и без свёртки: прямое заострение вывода
+    про DLinear — если нелинейность не нужна, у нелинейного аналога той же
+    структуры («смешивание по времени») не должно быть преимущества при
+    равном бюджете. MixingLayer уже устроен над формой [B, время, признаки]
+    — ровно наше представление, без адаптации."""
+
+    def __init__(self, n_layers=4, ff_dim=64, dropout=0.1, **kw):
+        super().__init__()
+        from neuralforecast.models.tsmixerx import MixingLayer
+        C = NF * 2                                              # X и M вместе
+        self.layers = nn.ModuleList([
+            MixingLayer(in_features=C, out_features=C, h=WB,
+                       dropout=dropout, ff_dim=ff_dim)
+            for _ in range(n_layers)])
+        self.proj = nn.Linear(C, P)
+
+    def forward(self, X, M):
+        h = torch.cat([X, M], dim=2)                             # [B,WB,2NF]
+        for layer in self.layers:
+            h = layer(h)
+        return self.proj(h)                                       # [B,WB,P]
+
+
+class TiDE(nn.Module):
+    """Плотный энкодер-декодер (MLPResidual-блоки из neuralforecast): всё окно
+    сжимается целиком в один вектор, решение разворачивается MLP-декодером
+    обратно на WB токенов, а гармоники времени подмешиваются в решение
+    ОТДЕЛЬНО на каждом токене через temporal-декодер. Единственная модель
+    набора, построенная вокруг ковариат, а не вокруг формы сигнала —
+    прямая проверка, даёт ли им что-то отдельный путь для sin/cos, которые
+    у всех остальных моделей идут наравне со значениями участка.
+
+    Глобальный skip оригинального TiDE — Linear по всей минутной сетке
+    (WB*P на WB*P, ~75М параметров на нашем окне) — заменён на потоковый,
+    как self.proj у всех остальных моделей здесь: иначе одна эта связь
+    вынесла бы модель на порядок за пределы бюджета параметров остальных."""
+
+    def __init__(self, hidden=256, temporal_width=8, n_enc=2, n_dec=2,
+                temporal_decoder_dim=64, dropout=0.1, **kw):
+        super().__init__()
+        from neuralforecast.models.tide import MLPResidual
+        self.temporal_width = temporal_width
+        enc_in = NF * WB * 2                                     # X и M плоско по всему окну
+        self.encoder = nn.Sequential(*[
+            MLPResidual(enc_in if i == 0 else hidden, hidden, hidden,
+                       dropout, layernorm=True)
+            for i in range(n_enc)])
+        dec_out = temporal_width * WB
+        self.decoder = nn.Sequential(*[
+            MLPResidual(hidden, hidden,
+                       hidden if i < n_dec - 1 else dec_out,
+                       dropout, layernorm=True)
+            for i in range(n_dec)])
+        self.cov_proj = MLPResidual(4, hidden, temporal_width, dropout, layernorm=True)
+        self.temporal = MLPResidual(temporal_width * 2, temporal_decoder_dim, P,
+                                    dropout, layernorm=True)
+        self.skip = nn.Linear(NF, P)
+
+    def forward(self, X, M):
+        B = X.shape[0]
+        flat = torch.cat([X, M], dim=2).reshape(B, -1)            # [B,NF*WB*2]
+        h = self.decoder(self.encoder(flat)).reshape(B, WB, self.temporal_width)
+        cov = self.cov_proj(X[:, :, P:P + 4])                      # [B,WB,tw]
+        out = self.temporal(torch.cat([h, cov], dim=2))            # [B,WB,P]
+        return out + self.skip(X)                                   # [B,WB,P]
+
+
 ARCH = {"dlinear": DLinear, "unet": UNet1D, "segrnn": SegRNN,
         "saits": Saits, "timesnet": TimesNet,
         "imputeformer": ImputeFormer, "crossformer": Crossformer,
-        "csdi": CSDI}
+        "csdi": CSDI,
+        "nhits": NHITS, "nbeatsx": NBEATSx,
+        "tsmixerx": TSMixerx, "tide": TiDE}
 
 
 def build(name, **kw):
