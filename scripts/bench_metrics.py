@@ -57,7 +57,10 @@ def win_mae(pred, true):
 
 
 def bootstrap_ci(err, se, m=CI_M, reps=CI_REPS, seed=CI_SEED):
-    """95% перцентильный бутстрэп-ДИ для P95(|ошибка|) и P95(RMSE по окнам).
+    """95% перцентильный бутстрэп-ДИ для MAE, RMSE, P95(|ошибка|) и
+    P95(RMSE по окнам) — НЕЗАВИСИМО для одного метода (не парный: см.
+    paired_bootstrap_ci, если нужно убрать общий шум выборки при сравнении
+    двух методов на одних и тех же окнах).
 
     Ресэмплинг ПО ОКНАМ (строкам err/se), не по отдельным точкам: точки
     внутри одной дыры зависимы (один шторм даёт много плохих точек подряд),
@@ -68,26 +71,34 @@ def bootstrap_ci(err, se, m=CI_M, reps=CI_REPS, seed=CI_SEED):
     получившимся reps значениям.
 
     err — |pred-true| поточечно (n_окон, L); se — (pred-true)^2, той же формы.
-    Возвращает (p95_lo, p95_hi, rmse_p95_lo, rmse_p95_hi)."""
+    Возвращает (mae_lo, mae_hi, rmse_lo, rmse_hi,
+                p95_lo, p95_hi, rmse_p95_lo, rmse_p95_hi)."""
     n = err.shape[0]
     rng = np.random.default_rng(seed)
     idxs = rng.integers(0, n, size=(reps, m))
+    mae_boot = np.empty(reps)
+    rmse_boot = np.empty(reps)
     p95_boot = np.empty(reps)
     rmse_p95_boot = np.empty(reps)
     for i in range(reps):
         idx = idxs[i]
+        mae_boot[i] = np.nanmean(err[idx])
+        rmse_boot[i] = np.sqrt(np.nanmean(se[idx]))
         p95_boot[i] = np.nanpercentile(err[idx], 95)
         win_rmse = np.sqrt(np.nanmean(se[idx], axis=1))
         rmse_p95_boot[i] = np.nanpercentile(win_rmse, 95)
+    mae_lo, mae_hi = np.percentile(mae_boot, [2.5, 97.5])
+    rmse_lo, rmse_hi = np.percentile(rmse_boot, [2.5, 97.5])
     p95_lo, p95_hi = np.percentile(p95_boot, [2.5, 97.5])
     r95_lo, r95_hi = np.percentile(rmse_p95_boot, [2.5, 97.5])
-    return float(p95_lo), float(p95_hi), float(r95_lo), float(r95_hi)
+    return (float(mae_lo), float(mae_hi), float(rmse_lo), float(rmse_hi),
+            float(p95_lo), float(p95_hi), float(r95_lo), float(r95_hi))
 
 
 def paired_bootstrap_ci(err_a, se_a, err_b, se_b, key, m=CI_M, reps=CI_REPS,
                          seed=CI_SEED):
-    """Парный 95% бутстрэп-ДИ на разницу (a − b) метрики key ('P95' или
-    'RMSE_P95') между двумя методами на ОДНИХ И ТЕХ ЖЕ окнах.
+    """Парный 95% бутстрэп-ДИ на разницу (a − b) метрики key ('MAE', 'RMSE',
+    'P95' или 'RMSE_P95') между двумя методами на ОДНИХ И ТЕХ ЖЕ окнах.
 
     В отличие от bootstrap_ci (независимый ДИ одного метода), здесь на
     каждом повторе ОБА метода ресэмплируются по ОДНОМУ И ТОМУ ЖЕ набору
@@ -109,7 +120,12 @@ def paired_bootstrap_ci(err_a, se_a, err_b, se_b, key, m=CI_M, reps=CI_REPS,
     diffs = np.empty(reps)
     for i in range(reps):
         idx = idxs[i]
-        if key == "P95":
+        if key == "MAE":
+            diffs[i] = np.nanmean(err_a[idx]) - np.nanmean(err_b[idx])
+        elif key == "RMSE":
+            diffs[i] = (np.sqrt(np.nanmean(se_a[idx]))
+                        - np.sqrt(np.nanmean(se_b[idx])))
+        elif key == "P95":
             diffs[i] = (np.nanpercentile(err_a[idx], 95)
                         - np.nanpercentile(err_b[idx], 95))
         elif key == "RMSE_P95":
@@ -118,7 +134,7 @@ def paired_bootstrap_ci(err_a, se_a, err_b, se_b, key, m=CI_M, reps=CI_REPS,
             diffs[i] = np.nanpercentile(wa, 95) - np.nanpercentile(wb, 95)
         else:
             raise ValueError(f"paired_bootstrap_ci: неизвестный key {key!r}, "
-                              f"ожидается 'P95' или 'RMSE_P95'")
+                              f"ожидается 'MAE', 'RMSE', 'P95' или 'RMSE_P95'")
     lo, hi = np.percentile(diffs, [2.5, 97.5])
     significant = bool((lo > 0) == (hi > 0))
     return float(diffs.mean()), float(lo), float(hi), significant
@@ -154,7 +170,12 @@ def basic_metrics(t, pm, sel, ci=True):
     out = {"MAE": mae, "RMSE": rmse, "NSE": nse, "NMAE": nmae,
            "P95": p95, "RMSE_P95": rmse_p95}
     if ci:
-        p95_lo, p95_hi, r95_lo, r95_hi = bootstrap_ci(err, se)
+        (mae_lo, mae_hi, rmse_lo, rmse_hi,
+         p95_lo, p95_hi, r95_lo, r95_hi) = bootstrap_ci(err, se)
+        out["MAE_CI_LO"] = mae_lo
+        out["MAE_CI_HI"] = mae_hi
+        out["RMSE_CI_LO"] = rmse_lo
+        out["RMSE_CI_HI"] = rmse_hi
         out["P95_CI_LO"] = p95_lo
         out["P95_CI_HI"] = p95_hi
         out["RMSE_P95_CI_LO"] = r95_lo
@@ -225,13 +246,20 @@ def run(args):
 
     if not args.no_ci:
         print(f"\n95% ДИ (бутстрэп по окнам, m={CI_M}, повторов={CI_REPS}), subset=all:")
-        print(f"{'len':>6} {'P95':>9} {'P95 95%ДИ':>18} {'RMSE_P95':>9} {'RMSE_P95 95%ДИ':>18}")
+        print(f"{'len':>6} {'MAE':>9} {'MAE 95%ДИ':>18} {'RMSE':>9} {'RMSE 95%ДИ':>18} "
+              f"{'P95':>9} {'P95 95%ДИ':>18} {'RMSE_P95':>9} {'RMSE_P95 95%ДИ':>18}")
         for L in lengths:
+            mae = idx.get(("MAE", L, "all"), np.nan)
+            rmse = idx.get(("RMSE", L, "all"), np.nan)
             p95 = idx.get(("P95", L, "all"), np.nan)
             r95 = idx.get(("RMSE_P95", L, "all"), np.nan)
+            mlo, mhi = idx.get(("MAE_CI_LO", L, "all"), np.nan), idx.get(("MAE_CI_HI", L, "all"), np.nan)
+            rmlo, rmhi = idx.get(("RMSE_CI_LO", L, "all"), np.nan), idx.get(("RMSE_CI_HI", L, "all"), np.nan)
             lo, hi = idx.get(("P95_CI_LO", L, "all"), np.nan), idx.get(("P95_CI_HI", L, "all"), np.nan)
             rlo, rhi = idx.get(("RMSE_P95_CI_LO", L, "all"), np.nan), idx.get(("RMSE_P95_CI_HI", L, "all"), np.nan)
-            print(f"{L:>6} {p95:>9.3f} {f'[{lo:.2f}, {hi:.2f}]':>18} "
+            print(f"{L:>6} {mae:>9.3f} {f'[{mlo:.2f}, {mhi:.2f}]':>18} "
+                  f"{rmse:>9.3f} {f'[{rmlo:.2f}, {rmhi:.2f}]':>18} "
+                  f"{p95:>9.3f} {f'[{lo:.2f}, {hi:.2f}]':>18} "
                   f"{r95:>9.3f} {f'[{rlo:.2f}, {rhi:.2f}]':>18}")
 
     tag = f"{method}_{setname}"
@@ -247,6 +275,69 @@ def run(args):
 
     if args.base:
         run_paired(args, d, method, setname, lengths)
+    if args.vs_station:
+        run_cross_station(args, d, method, setname, lengths)
+
+
+def run_cross_station(args, d, method, setname, lengths):
+    """Парный бутстрэп-ДИ на P95 между ДВУМЯ СТАНЦИЯМИ для ОДНОГО И ТОГО ЖЕ
+    метода (--vs-station), в отличие от run_paired (--base), который
+    сравнивает два метода на ОДНОЙ станции.
+
+    Проверка совпадения окон здесь принципиально другая: значения истины
+    у разных станций НИКОГДА не совпадут (разное поле), поэтому сверяем
+    ПОЗИЦИЮ дыры (gap0) — она обязана совпасть побитово, если дампы
+    сделаны через bench_run.py --align-codes (см. gather_aligned в
+    bench_common.py). Без --align-codes позиции почти наверняка разойдутся
+    (проверено эмпирически: 93-94% совпадения на большинстве длин, 3% на
+    4320 мин из-за расхождения ГСЧ по станциям) — тогда парность неверна,
+    и скрипт отказывается считать её, а не молча даёт неверный ДИ."""
+    b = load(args.vs_station)
+    other_setname = str(b["setname"])
+    code_a = setname.split("_")[0]
+    code_b = other_setname.split("_")[0]
+    print(f"\n--- межстанционное сравнение (P95): {setname} против "
+          f"{other_setname}, метод {method} "
+          f"(бутстрэп по окнам, m={CI_M}, повторов={CI_REPS}) ---")
+    print(f"{'len':>6} {'P95 diff':>9} {'95% ДИ':>18} {'значимо':>8}  окон  вердикт")
+
+    prows = []
+    for L in lengths:
+        if f"L{L}_true" not in b:
+            continue
+        t, pm = gap(d, L, "true"), gap(d, L, "pred")
+        tb, pb = gap(b, L, "true"), gap(b, L, "pred")
+        g0, g0b = d[f"L{L}_gap0"], b[f"L{L}_gap0"]
+        n = min(t.shape[0], tb.shape[0])
+        if not np.array_equal(g0[:n], g0b[:n]):
+            miss = float((g0[:n] != g0b[:n]).mean())
+            print(f"{L:>6}  окна не выровнены по времени ({miss:.0%} "
+                  f"расходятся) — пересчитать через bench_run.py "
+                  f"--align-codes, пропуск")
+            continue
+        err_a, se_a = np.abs(pm[:n] - t[:n]), (pm[:n] - t[:n]) ** 2
+        err_b, se_b = np.abs(pb[:n] - tb[:n]), (pb[:n] - tb[:n]) ** 2
+        m_, lo, hi, sig = paired_bootstrap_ci(err_a, se_a, err_b, se_b, "P95")
+        # разница = a − b (P95 ошибки; меньше = точнее): значимо и <0 -> a
+        # точнее, значимо и >0 -> b точнее, ДИ накрывает 0 -> не отличается
+        if not sig:
+            verdict = "не отличается"
+        elif m_ < 0:
+            verdict = f"{code_a} точнее"
+        else:
+            verdict = f"{code_b} точнее"
+        prows.append(("P95", L, m_, lo, hi, sig, n, verdict))
+        print(f"{L:>6} {m_:>+9.3f} {f'[{lo:+.2f}, {hi:+.2f}]':>18} "
+              f"{'да' if sig else 'нет':>8}  {n}  {verdict}")
+
+    pout = os.path.join(DATA, f"metrics_{method}_{setname}_vs_{other_setname}_P95.csv")
+    with open(pout, "w", encoding="utf-8") as f:
+        f.write("metric,gap_len,mean_diff,ci_lo,ci_hi,significant,n_windows,verdict\n")
+        for key, L, m_, lo, hi, sig, n, verdict in prows:
+            f.write(f"{key},{L},{m_:.6g},{lo:.6g},{hi:.6g},{sig},{n},{verdict}\n")
+    print(f"\nсохранено: {pout}  ({len(prows)} строк)  "
+          f"(разница = {setname} минус {other_setname}; "
+          f"отрицательная -> {setname} лучше)")
 
 
 def run_paired(args, d, method, setname, lengths):
@@ -271,7 +362,7 @@ def run_paired(args, d, method, setname, lengths):
             continue
         err_a, se_a = np.abs(pm - t), (pm - t) ** 2
         err_b, se_b = np.abs(pb - tb), (pb - tb) ** 2
-        for key in ("P95", "RMSE_P95"):
+        for key in ("MAE", "RMSE", "P95", "RMSE_P95"):
             m_, lo, hi, sig = paired_bootstrap_ci(err_a, se_a, err_b, se_b, key)
             prows.append((key, L, m_, lo, hi, sig))
             print(f"{L:>6} {key:>9} {m_:>+9.3f} {f'[{lo:+.2f}, {hi:+.2f}]':>18} "
@@ -332,6 +423,11 @@ def main():
                      help="дамп второго метода — парное сравнение P95/RMSE_P95 "
                           "с ДИ на РАЗНИЦУ (значимее независимых ДИ; см. "
                           "paired_bootstrap_ci), пишется отдельным файлом")
+    ap.add_argument("--vs-station", default=None,
+                     help="дамп того же метода на ДРУГОЙ станции (нужен "
+                          "--pred и --vs-station из bench_run.py "
+                          "--align-codes, иначе окна не выровнены) — парный "
+                          "ДИ на разницу P95 между станциями")
     run(ap.parse_args())
 
 

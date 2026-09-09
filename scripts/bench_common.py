@@ -85,6 +85,76 @@ def gather(years, gap_len, n, rng, max_real=MAX_REAL):
     return out
 
 
+def gather_aligned(codes_years, gap_len, n, rng, max_real=MAX_REAL):
+    """То же самое, что gather(), но СРАЗУ для нескольких станций, с
+    гарантией побитового совпадения (год, начало окна, позиция дыры) между
+    ними — а не совпадения "как получится".
+
+    Обычный gather() расходится между станциями: отбраковка (dырой
+    попавшей на реальный пропуск, или mask_real выше порога) зависит от
+    паттерна пропусков КОНКРЕТНОЙ станции, и как только одна станция
+    отбраковывает кандидата, а другая — нет, последовательность ГСЧ
+    сдвигается, и все дальнейшие окна расходятся (проверено эмпирически:
+    93-94% совпадения на большинстве длин, 3% на 4320 мин). Здесь позиция
+    дыры выбирается один раз из ПЕРЕСЕЧЕНИЯ допустимых кандидатов по всем
+    станциям сразу, и окно принимается только если проходит порог
+    max_real НА КАЖДОЙ станции — гарантия совпадения по построению, а не
+    по случаю.
+
+    codes_years: {код станции: {год: F}}; набор годов должен совпадать
+    у всех станций (иначе ValueError — иное сравнение бессмысленно).
+    Возвращает {код: [sample, ...]}, списки одной длины n; year/start/pos
+    одинаковы у всех кодов, input/target/mask_real — свои для каждой
+    станции (свои значения поля)."""
+    codes = list(codes_years)
+    years_sets = {c: set(codes_years[c]) for c in codes}
+    for c in codes[1:]:
+        if years_sets[c] != years_sets[codes[0]]:
+            raise ValueError(f"разные годы у станций {codes[0]} и {c}: "
+                             f"{sorted(years_sets[codes[0]])} vs {sorted(years_sets[c])}")
+    arrs = {c: {y: F for y, F in codes_years[c].items() if F.size > W}
+            for c in codes}
+    years_ok = [y for y in years_sets[codes[0]] if all(y in arrs[c] for c in codes)]
+    out = {c: [] for c in codes}
+    if not years_ok:
+        return out
+    tries = n * 300
+    while len(out[codes[0]]) < n and tries > 0:
+        tries -= 1
+        y = years_ok[rng.integers(len(years_ok))]
+        size = min(arrs[c][y].size for c in codes)
+        start = int(rng.integers(0, size - W))
+        reals, cand_common = {}, None
+        for c in codes:
+            win = arrs[c][y][start:start + W]
+            real = ~np.isfinite(win)
+            reals[c] = real
+            cc = set(candidate_starts(real, gap_len).tolist())
+            cand_common = cc if cand_common is None else (cand_common & cc)
+        if not cand_common:
+            continue
+        s = int(rng.choice(sorted(cand_common)))
+        samples, ok = {}, True
+        for c in codes:
+            real = reals[c]
+            if real.mean() >= max_real:
+                ok = False
+                break
+            win = arrs[c][y][start:start + W].astype(np.float32).copy()
+            art = np.zeros(W, dtype=bool)
+            art[s:s + gap_len] = True
+            inp = win.copy()
+            inp[art] = np.nan
+            samples[c] = dict(input=inp, target=win, mask_art=art,
+                              mask_real=real, pos=(s, gap_len),
+                              start=start, year=y)
+        if not ok:
+            continue
+        for c in codes:
+            out[c].append(samples[c])
+    return out
+
+
 def real_gap_lengths(years):
     """Длины реальных непрерывных пропусков — эмпирический пул для сэмплера."""
     lens = []

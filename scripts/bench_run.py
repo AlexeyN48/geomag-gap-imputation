@@ -128,15 +128,89 @@ def resolve(method):
     return (lambda inp, start: BM.fill(net, inp, start, ck["scale"], dev)), ck
 
 
+def _build_length_fields(smps, fn, acts, L):
+    """tr/pr/act/g0 для одной длины L из списка сэмплов — общая часть между
+    обычным прогоном (один код станции) и выровненным (--align-codes)."""
+    if not smps:
+        return None, 0.0
+    span = 2 * C.MARGIN + L
+    n = len(smps)
+    tr = np.full((n, span), np.nan, np.float32)
+    pr = np.full((n, span), np.nan, np.float32)
+    act = np.zeros(n, np.float32)
+    g0 = np.zeros(n, np.int32)
+    errs = []
+    for i, s in enumerate(smps):
+        pred = fn(s["input"], s["start"])
+        a = int(s["pos"][0])
+        lo, hi = a - C.MARGIN, a + L + C.MARGIN
+        clo, chi = max(0, lo), min(C.W, hi)
+        d0 = clo - lo
+        tr[i, d0:d0 + chi - clo] = s["target"][clo:chi]
+        pr[i, d0:d0 + chi - clo] = pred[clo:chi]
+        mk = s["mask_art"]
+        errs.append(np.abs(pred[mk] - s["target"][mk]).mean())
+        st = s["start"]
+        act[i] = acts[s["year"]][st:st + C.W].mean()
+        g0[i] = a
+    return dict(true=tr, pred=pr, act=act, gap0=g0), float(np.mean(errs))
+
+
+def _save_dump(args, code, lengths, fields_by_L):
+    out = {}
+    for L, fields in fields_by_L.items():
+        out[f"L{L}_true"] = fields["true"]
+        out[f"L{L}_pred"] = fields["pred"]
+        out[f"L{L}_act"] = fields["act"]
+        out[f"L{L}_gap0"] = fields["gap0"]
+    setname = f"{code}_{args.split}"
+    out["method"] = np.array(args.method)
+    out["setname"] = np.array(setname)
+    out["lengths"] = np.array(lengths, np.int32)
+    out["margin"] = np.array(C.MARGIN, np.int32)
+    out["seed"] = np.array(C.SEED, np.int32)
+    path = os.path.join(C.DATA, f"dump_{args.method}_{setname}.npz")
+    np.savez_compressed(path, **out)
+    print(f"сохранено: {path}  ({os.path.getsize(path) / 1e6:.1f} МБ)")
+
+
 def run(args):
     fn, ck = resolve(args.method)
     if ck is not None:
         print(f"чекпойнт: {args.method}.pt  шаг={ck['step']}  "
               f"val при обучении={ck['val']:.3f} нТл")
+    lengths = args.lengths or C.LENGTHS
+    rng = np.random.default_rng(C.SEED + 7)
+
+    if args.align_codes:
+        # выровненный прогон: одни и те же (год, окно, позиция дыры) сразу
+        # для нескольких станций — см. gather_aligned, почему это не то же
+        # самое, что независимые прогоны по каждой станции отдельно.
+        codes = [c.strip() for c in args.align_codes.split(",") if c.strip()]
+        years_by_code = {c: C.load_split(args.split, code=c) for c in codes}
+        acts_by_code = {c: {y: C.activity(F) for y, F in yy.items()}
+                        for c, yy in years_by_code.items()}
+        print(f"метод={args.method}  align_codes={codes}  сплит={args.split}  "
+              f"n={args.n}  margin={C.MARGIN}")
+        print(f"{'len':>6}{'код':>6}{'окон':>6}{'MAE, нТл':>12}")
+        print("-" * 30)
+        fields_by_code = {c: {} for c in codes}
+        for L in lengths:
+            smps_by_code = C.gather_aligned(years_by_code, L, args.n, rng)
+            for c in codes:
+                fields, mae = _build_length_fields(smps_by_code[c], fn,
+                                                    acts_by_code[c], L)
+                if fields is None:
+                    print(f"{L:>6}{c:>6}{0:>6}  нет окон")
+                    continue
+                fields_by_code[c][L] = fields
+                print(f"{L:>6}{c:>6}{len(smps_by_code[c]):>6}{mae:>12.3f}")
+        for c in codes:
+            _save_dump(args, c, lengths, fields_by_code[c])
+        return
+
     years = C.load_split(args.split, code=args.code)
     acts = {y: C.activity(F) for y, F in years.items()}
-    rng = np.random.default_rng(C.SEED + 7)
-    lengths = args.lengths or C.LENGTHS
     setname = f"{args.code}_{args.split}"
 
     print(f"метод={args.method}  набор={setname} ({', '.join(map(str, sorted(years)))})"
@@ -144,45 +218,34 @@ def run(args):
     print(f"{'len':>6}{'окон':>6}{'MAE, нТл':>12}")
     print("-" * 24)
 
-    out = {}
+    fields_by_L = {}
     for L in lengths:
         smps = C.gather(years, L, args.n, rng)
-        if not smps:
+        fields, mae = _build_length_fields(smps, fn, acts, L)
+        if fields is None:
             print(f"{L:>6}{0:>6}  нет окон")
             continue
-        span = 2 * C.MARGIN + L
-        tr = np.full((len(smps), span), np.nan, np.float32)
-        pr = np.full((len(smps), span), np.nan, np.float32)
-        act = np.zeros(len(smps), np.float32)
-        g0 = np.zeros(len(smps), np.int32)
-        errs = []
-        for i, s in enumerate(smps):
-            pred = fn(s["input"], s["start"])
-            a = int(s["pos"][0])
-            lo, hi = a - C.MARGIN, a + L + C.MARGIN
-            clo, chi = max(0, lo), min(C.W, hi)
-            d0 = clo - lo
-            tr[i, d0:d0 + chi - clo] = s["target"][clo:chi]
-            pr[i, d0:d0 + chi - clo] = pred[clo:chi]
-            mk = s["mask_art"]
-            errs.append(np.abs(pred[mk] - s["target"][mk]).mean())
-            st = s["start"]
-            act[i] = acts[s["year"]][st:st + C.W].mean()
-            g0[i] = a
-        out[f"L{L}_true"] = tr
-        out[f"L{L}_pred"] = pr
-        out[f"L{L}_act"] = act
-        out[f"L{L}_gap0"] = g0
-        print(f"{L:>6}{len(smps):>6}{np.mean(errs):>12.3f}")
+        fields_by_L[L] = fields
+        print(f"{L:>6}{len(smps):>6}{mae:>12.3f}")
 
-    out["method"] = np.array(args.method)
-    out["setname"] = np.array(setname)
-    out["lengths"] = np.array(lengths, np.int32)
-    out["margin"] = np.array(C.MARGIN, np.int32)
-    out["seed"] = np.array(C.SEED, np.int32)
-    path = args.out or os.path.join(C.DATA, f"dump_{args.method}_{setname}.npz")
-    np.savez_compressed(path, **out)
-    print(f"\nсохранено: {path}  ({os.path.getsize(path) / 1e6:.1f} МБ)")
+    if args.out:
+        # ручной путь вывода — сохраняем напрямую, без _save_dump (та всегда
+        # строит имя по code/split)
+        out = {}
+        for L, fields in fields_by_L.items():
+            out[f"L{L}_true"] = fields["true"]
+            out[f"L{L}_pred"] = fields["pred"]
+            out[f"L{L}_act"] = fields["act"]
+            out[f"L{L}_gap0"] = fields["gap0"]
+        out["method"] = np.array(args.method)
+        out["setname"] = np.array(setname)
+        out["lengths"] = np.array(lengths, np.int32)
+        out["margin"] = np.array(C.MARGIN, np.int32)
+        out["seed"] = np.array(C.SEED, np.int32)
+        np.savez_compressed(args.out, **out)
+        print(f"\nсохранено: {args.out}  ({os.path.getsize(args.out) / 1e6:.1f} МБ)")
+    else:
+        _save_dump(args, args.code, lengths, fields_by_L)
 
 
 def main():
@@ -194,6 +257,14 @@ def main():
     ap.add_argument("--code", default=C.CODE,
                      help="код станции (префикс файлов data/<код>_<год>.npz); "
                           "меняет и вход, и имя выходного дампа (dump_<метод>_<код>_<сплит>.npz)")
+    ap.add_argument("--align-codes", default=None,
+                     help="через запятую (напр. ARS,HAD,WNG) — выровненный "
+                          "прогон: одни и те же (год, окно, позиция дыры) для "
+                          "всех перечисленных станций разом, гарантируя "
+                          "побитовое совпадение окон между ними (нужно для "
+                          "парного бутстрепа/сравнения станций); пишет по "
+                          "отдельному дампу на каждый код, --code/--out "
+                          "игнорируются")
     ap.add_argument("--n", type=int, default=128)
     ap.add_argument("--lengths", type=int, nargs="+", default=None)
     ap.add_argument("--out", default=None)
