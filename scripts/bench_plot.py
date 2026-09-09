@@ -32,10 +32,15 @@ STYLE = {                       # цвет и подпись закреплен�
     "imputeformer": ("#7f7f7f", "ImputeFormer"),
     "crossformer":  ("#8B0000", "Crossformer"),
     "csdi":         ("#00868B", "CSDI"),
+    "nhits":        ("#ff7f0e", "NHITS"),
+    "nbeatsx":      ("#aec7e8", "NBEATSx"),
+    "tsmixerx":     ("#c5b0d5", "TSMixerx"),
+    "tide":         ("#98df8a", "TiDE"),
 }
 ORDER = ["mean", "locf", "linear", "pchip", "daily",
          "dlinear", "unet", "segrnn", "timesnet", "saits",
-         "imputeformer", "crossformer", "csdi"]
+         "imputeformer", "crossformer", "csdi",
+         "nhits", "nbeatsx", "tsmixerx", "tide"]
 
 # панель: (ключ метрики, заголовок, подпись оси, опорная линия, лог. шкала)
 PANELS = [
@@ -43,17 +48,19 @@ PANELS = [
     ("RMSE", "RMSE — среднеквадратичная ошибка", "RMSE, нТл", None, True),
     ("NSE",  "NSE — эффективность Нэша-Сатклиффа", "NSE  (1 = идеал, 0 = как среднее)", 0.0, False),
     ("NMAE", "NMAE — ошибка / изменчивость сигнала", "NMAE = MAE / std(true в дыре)", None, False),
-    ("MASE", "MASE — ошибка / наивный LOCF", "MASE = MAE / MAE(LOCF), той же длины L", 1.0, False),
+    ("MAPE", "MAPE — по логарифму отношения (см. bench_metrics.mape_log)",
+     "100 × mean(|ln(pred/true)|), %", None, True),
 ]
 
 
 CORE_METHODS = {"mean", "locf", "linear", "pchip", "daily", "dlinear", "unet",
-                 "segrnn", "timesnet", "saits", "imputeformer", "crossformer", "csdi"}
+                 "segrnn", "timesnet", "saits", "imputeformer", "crossformer", "csdi",
+                 "nhits", "nbeatsx", "tsmixerx", "tide"}
 
 
 def read_metrics(split):
     """{метод: {метрика: {длина: значение}}} из всех таблиц набора. Только
-    основные 13 методов — варианты бюджета/ёмкости (unet_b16, saits_l4, ...)
+    основные 17 методов — варианты бюджета/ёмкости (unet_b16, saits_l4, ...)
     считались на 128 окнах вместо 1024 и не сравнимы построчно с остальными
     на графике; их место в отдельном разделе отчёта, не на общем рисунке."""
     out = {}
@@ -98,11 +105,11 @@ def write_summary(met, methods, lengths, split):
     таблицей Word, а не картинкой; здесь только сырые данные."""
     csv_path = os.path.join(C.DATA, f"metrics_summary_{split}.csv")
     with open(csv_path, "w", encoding="utf-8") as f:
-        f.write("method,gap_len,MAE,RMSE,NSE,NMAE,MASE\n")
+        f.write("method,gap_len,MAE,RMSE,NSE,NMAE,MAPE\n")
         for m in methods:
             for L in lengths:
                 vals = [met.get(m, {}).get(k, {}).get(L) for k in
-                        ("MAE", "RMSE", "NSE", "NMAE", "MASE")]
+                        ("MAE", "RMSE", "NSE", "NMAE", "MAPE")]
                 if all(v is None for v in vals):
                     continue
                 cells = ["" if v is None else f"{v:.4g}" for v in vals]

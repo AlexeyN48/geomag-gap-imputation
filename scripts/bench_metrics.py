@@ -1,12 +1,22 @@
 r"""Семь метрик качества восстановления плюс бутстрэп-ДИ на P95/RMSE_P95.
 
-Метрики MAE, RMSE, NSE, NMAE, P95 считаются по точкам внутри дыры (пул по
-всем окнам), MASE и RMSE_P95 — по-окнам:
+Метрики MAE, RMSE, NSE, NMAE, MAPE, P95 считаются по точкам внутри дыры (пул
+по всем окнам), RMSE_P95 — по-окнам:
   MAE       средняя абсолютная ошибка, нТл
   RMSE      корень из среднеквадратичной ошибки, нТл — штрафует крупные промахи
   NSE       1 − MSE/Var(true): 1 = идеал, 0 = не лучше среднего, <0 = хуже среднего
   NMAE      MAE / std(true в дыре) — ошибка в долях реальной изменчивости сигнала
-  MASE      MAE / MAE(LOCF на той же длине дыры L) — <1 лучше наивного, >1 хуже
+  MAPE      относительная ошибка по ЛОГАРИФМУ отношения |ln(pred/true)|×100% —
+            не обычная |pred-true|/|true|: истина здесь — модуль поля, порядка
+            5·10⁴ нТл и никогда не близка к нулю, но обычная процентная ошибка
+            всё равно взрывается на редких точках, где предсказание уходит в
+            отрицательные или близкие к нулю значения (модель не обязана знать,
+            что F > 0). Логарифм отношения растёт только логарифмически, а не
+            как 1/true, поэтому такие точки не рвут среднее по всей выборке.
+            NB: поскольку истина всегда одного порядка (знаменатель почти
+            константа), MAPE здесь по существу масштабированная MAE и НЕ несёт
+            информации, независимой от неё, — метрика добавлена по запросу, а
+            не потому что здесь есть подходящая для процентной ошибки шкала.
   P95       95-й перцентиль |ошибка| по всем точкам всех окон — хвост поточечно:
             редкая, но крупная ошибка внутри отдельных минут дыры
   RMSE_P95  95-й перцентиль RMSE, посчитанного ОТДЕЛЬНО для каждого окна —
@@ -50,10 +60,6 @@ def load(path):
 def gap(d, L, key):
     m = int(d["margin"])
     return d[f"L{L}_{key}"][:, m:m + L].astype(np.float64)
-
-
-def win_mae(pred, true):
-    return np.nanmean(np.abs(pred - true), axis=1)
 
 
 def bootstrap_ci(err, se, m=CI_M, reps=CI_REPS, seed=CI_SEED):
@@ -140,13 +146,28 @@ def paired_bootstrap_ci(err_a, se_a, err_b, se_b, key, m=CI_M, reps=CI_REPS,
     return float(diffs.mean()), float(lo), float(hi), significant
 
 
-def basic_metrics(t, pm, sel, ci=True):
-    """MAE, RMSE, NSE, NMAE, P95, RMSE_P95 — все на выбранном подмножестве окон.
+def mape_log(pred, true, eps=1e-6):
+    """MAPE по логарифму отношения: 100 × mean(|ln(pred/true)|).
 
-    MAE/RMSE/NSE/NMAE/P95 — пул по всем точкам дыры (не среднее по-окнам):
-    NSE и NMAE сравниваются с честной изменчивостью истины на этом
-    подмножестве, а не с абсолютным уровнем поля (~5.7e4 нТл), где
-    относительные метрики вроде MAPE вырождаются (знаменатель почти константа).
+    Обычная |pred-true|/|true| взрывается, если знаменатель (здесь —
+    предсказание МОДЕЛИ, не истина: F физически не бывает отрицательным или
+    нулевым, но сеть об этом не знает и иногда выдаёт значение около нуля на
+    редких плохих точках) оказывается близко к нулю. Логарифм отношения на
+    тех же точках растёт как ln(1/eps), а не как 1/eps — единичные выбросы
+    не разносят среднее по всей выборке. eps защищает сам логарифм от minus
+    inf, если предсказание всё же ушло в ноль или в минус."""
+    r = np.clip(pred, eps, None) / np.clip(true, eps, None)
+    return float(np.nanmean(np.abs(np.log(r))) * 100.0)
+
+
+def basic_metrics(t, pm, sel, ci=True):
+    """MAE, RMSE, NSE, NMAE, MAPE, P95, RMSE_P95 — все на выбранном подмножестве окон.
+
+    MAE/RMSE/NSE/NMAE/MAPE/P95 — пул по всем точкам дыры (не среднее
+    по-окнам): NSE и NMAE сравниваются с честной изменчивостью истины на
+    этом подмножестве, а не с абсолютным уровнем поля (~5.7e4 нТл) — там,
+    где вырождается MAPE (знаменатель почти константа, см. mape_log и
+    докстринг модуля).
 
     RMSE_P95 — другое: RMSE считается ОТДЕЛЬНО для каждого окна (ось точек
     внутри окна), и только потом берётся перцентиль ПО ОКНАМ. Это отвечает
@@ -164,10 +185,11 @@ def basic_metrics(t, pm, sel, ci=True):
     var_y = std_y ** 2
     nse = (1.0 - mse / var_y) if var_y > 0 else np.nan
     nmae = (mae / std_y) if std_y > 0 else np.nan
+    mape = mape_log(pp, tt)
     p95 = float(np.nanpercentile(err, 95))
     win_rmse = np.sqrt(np.nanmean(se, axis=1))
     rmse_p95 = float(np.nanpercentile(win_rmse, 95))
-    out = {"MAE": mae, "RMSE": rmse, "NSE": nse, "NMAE": nmae,
+    out = {"MAE": mae, "RMSE": rmse, "NSE": nse, "NMAE": nmae, "MAPE": mape,
            "P95": p95, "RMSE_P95": rmse_p95}
     if ci:
         (mae_lo, mae_hi, rmse_lo, rmse_hi,
@@ -190,21 +212,6 @@ def subsets(act):
     return {"all": np.ones(len(act), bool), "act": hi, "qui": ~hi}
 
 
-def locf_mae(locf, L, t):
-    """MAE наивного LOCF на дыре ТОЙ ЖЕ длины L, что и оцениваемый метод —
-    знаменатель MASE. Если сравнить с одношаговым (1 мин) наивным прогнозом,
-    число растёт с L искусственно: одношаговый прогноз никогда не пытался
-    предсказывать на часы/сутки вперёд, поэтому сравнение с ним на длинных
-    дырах некорректно занижает знаменатель."""
-    if locf is None or f"L{L}_true" not in locf:
-        return None
-    n = t.shape[0]
-    tl = gap(locf, L, "true")
-    if tl.shape[0] < n or not np.allclose(t, tl[:n], equal_nan=True):
-        return None
-    return win_mae(gap(locf, L, "pred")[:n], t)
-
-
 # --------------------------------------------------------------- прогон
 def run(args):
     d = load(args.pred)
@@ -214,9 +221,6 @@ def run(args):
 
     print(f"метод: {method}   набор: {setname}\n")
 
-    locf_path = os.path.join(DATA, f"dump_locf_{setname}.npz")
-    locf = load(locf_path) if os.path.exists(locf_path) else None
-
     rows = []
     for L in lengths:
         if f"L{L}_true" not in d:
@@ -224,17 +228,14 @@ def run(args):
         t = gap(d, L, "true")
         pm = gap(d, L, "pred")
         act = d[f"L{L}_act"]
-        e_locf = locf_mae(locf, L, t)
 
         for sub, sel in subsets(act).items():
             v = basic_metrics(t, pm, sel, ci=not args.no_ci)
-            if e_locf is not None:
-                v["MASE"] = v["MAE"] / float(e_locf[sel].mean())
             for k, val in v.items():
                 rows.append((k, L, sub, val))
 
     idx = {(k, L, s): v for k, L, s, v in rows}
-    keys = ["MAE", "RMSE", "NSE", "NMAE", "MASE", "P95", "RMSE_P95"]
+    keys = ["MAE", "RMSE", "NSE", "NMAE", "MAPE", "P95", "RMSE_P95"]
     print(f"{'len':>6} " + " ".join(f"{h:>9}" for h in keys))
     print("-" * (7 + 10 * len(keys)))
     for L in lengths:
@@ -391,17 +392,21 @@ def figure(idx, lengths, method, setname, tag):
 
     ax = axes[1]
     xs = [L for L in lengths if ("NSE", L, "all") in idx]
-    ax.plot(xs, [idx[("NSE", L, "all")] for L in xs], "-o", color="#2ca02c", label="NSE")
-    xs2 = [L for L in lengths if ("MASE", L, "all") in idx]
-    # меньше 2 точек — одна точка не сравнима по масштабу с NSE и ломает ось,
-    # обычно значит, что окна метода не совпали с LOCF-дампом почти нигде
-    if len(xs2) >= 2:
-        ax.plot(xs2, [idx[("MASE", L, "all")] for L in xs2], "-o", color="#9467bd", label="MASE")
-    ax.axhline(1.0, color="k", lw=1, ls="--", alpha=0.6)
+    l1 = ax.plot(xs, [idx[("NSE", L, "all")] for L in xs], "-o", color="#2ca02c", label="NSE")
     ax.axhline(0.0, color="k", lw=1, ls=":", alpha=0.4)
     ax.set_xscale("log"); ax.set_xticks(lengths); ax.set_xticklabels(lengths)
-    ax.set_xlabel("длина пропуска, мин"); ax.set_ylabel("безразмерная")
-    ax.set_title("NSE и MASE"); ax.grid(alpha=0.25); ax.legend(fontsize=8)
+    ax.set_xlabel("длина пропуска, мин"); ax.set_ylabel("NSE  (1 = идеал, 0 = как среднее)")
+    ax.grid(alpha=0.25)
+
+    # MAPE — на своей оси: у F порядок ~5·10⁴ нТл, поэтому MAPE численно
+    # НА ПОРЯДКИ меньше NSE (см. докстринг mape_log) и на общей оси выглядел
+    # бы плоской нулевой линией.
+    axm = ax.twinx()
+    xs2 = [L for L in lengths if ("MAPE", L, "all") in idx]
+    l2 = axm.plot(xs2, [idx[("MAPE", L, "all")] for L in xs2], "-o", color="#9467bd", label="MAPE")
+    axm.set_yscale("log")
+    axm.set_ylabel("MAPE, % (по логарифму отношения)")
+    ax.set_title("NSE и MAPE"); ax.legend(l1 + l2, [ln.get_label() for ln in l1 + l2], fontsize=8)
 
     fig.suptitle(f"{method} — {setname}", fontsize=11)
     fig.tight_layout(rect=(0, 0.03, 1, 0.94))
