@@ -39,11 +39,14 @@ r"""Семь метрик качества восстановления плюс
             хвост по окнам целиком: насколько плохо выглядит худшее из окон,
             а не худшая отдельная точка (см. P95)
 
-Плюс 95% доверительный интервал для P95 и RMSE_P95 (P95_CI_LO/HI,
-RMSE_P95_CI_LO/HI) — перцентильный бутстрэп по ОКНАМ (не по точкам: точки
-внутри одной дыры зависимы, см. docstring bootstrap_ci). Показывает, насколько
-сама оценка P95/RMSE_P95 держится на конкретной выборке из 1024 окон, а не
-только что она такое.
+Плюс 95% доверительный интервал для MAE, RMSE, P95 и RMSE_P95 (…_CI_LO/HI) —
+перцентильный БЛОЧНЫЙ бутстрэп по календарным НЕДЕЛЯМ (не по точкам и не по
+окнам: точки внутри одной дыры зависимы, а окна в дампе перекрываются — на
+длинных дырах каждая минута года лежит в ~8 дырах, и бутстрэп по окнам
+считал бы один шторм восемью независимыми; см. docstring bootstrap_ci).
+Показывает, насколько оценка держится на конкретном годе, а не только что
+она такое. Блок берётся из поля L{L}_block дампа (bench_run.py); для старых
+дампов без него позиции окон восстанавливаются по данным станции.
 
 Запуск:  cd bench_arti/scripts
          python -u bench_metrics.py --pred dump_pchip_ARS_val.npz
@@ -60,12 +63,78 @@ import matplotlib.pyplot as plt
 DATA = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
 FIGS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "figures"))
 
-CI_M = 512      # размер бутстрэп-ресэмпла (окон), берётся С ВОЗВРАЩЕНИЕМ —
-                # меньше n=1024 специально: вдвое быстрее, и даёт представление
-                # о разбросе оценки, а не только повторяет исходный размер
+CI_M = 512      # размер ресэмпла (окон) для ЗАПАСНОГО бутстрэпа по окнам —
+                # используется только если блоки недоступны (см. blocks_for)
 CI_REPS = 200   # число бутстрэп-повторов на каждую (длина, subset) — компромисс
                 # между устойчивостью границ ДИ и временем счёта по всем длинам
 CI_SEED = 1234  # тот же SEED, что и в bench_common.py — воспроизводимость
+
+
+def _resample_idx(n, blocks, rng, reps, m=CI_M):
+    """reps наборов индексов окон для бутстрэпа.
+
+    blocks — массив (n,) с номером блока (год·100 + неделя) каждого окна:
+    на каждом повторе тянутся С ВОЗВРАЩЕНИЕМ целые блоки (столько, сколько
+    их всего), и берутся ВСЕ окна вытянутых блоков. Окна одной недели
+    уходят и приходят вместе, поэтому перекрытие дыр и общий шторм
+    не раздувают эффективный объём выборки. blocks=None — запасной путь:
+    m окон с возвращением, как раньше (ДИ на длинных дырах занижен)."""
+    if blocks is None:
+        for _ in range(reps):
+            yield rng.integers(0, n, size=m)
+        return
+    groups = [np.flatnonzero(blocks == b) for b in np.unique(blocks)]
+    nb = len(groups)
+    for _ in range(reps):
+        pick = rng.integers(0, nb, size=nb)
+        yield np.concatenate([groups[g] for g in pick])
+
+
+def blocks_for(d, L, setname=None):
+    """Номер блока (год·100 + календарная неделя начала дыры) для каждого
+    окна длины L. Берётся из L{L}_block, если дамп сделан новым bench_run.py;
+    иначе окна ищутся в рядах станции по первым K значениям истины (точное
+    совпадение float32) и блок восстанавливается. Если найти не удалось —
+    None, и бутстрэп идёт по окнам с предупреждением."""
+    key = f"L{L}_block"
+    if key in d:
+        return d[key].astype(np.int64)
+    import bench_common as C
+    setname = setname or str(d["setname"])
+    code, split = setname.split("_", 1)
+    cache = blocks_for._cache.setdefault(setname, {})
+    if "index" not in cache:
+        from numpy.lib.stride_tricks import sliding_window_view
+        K = 24
+        index = {}
+        for y, F in C.load_split(split, code=code).items():
+            sw = sliding_window_view(F.astype(np.float32), K)
+            for i in range(sw.shape[0]):
+                index.setdefault(sw[i].tobytes(), (y, i))
+        cache["index"], cache["K"] = index, K
+    index, K = cache["index"], cache["K"]
+    m = int(d["margin"])
+    tr = d[f"L{L}_true"].astype(np.float32)
+    out = np.full(tr.shape[0], -1, np.int64)
+    for i, row in enumerate(tr):
+        fin = np.flatnonzero(np.isfinite(row))
+        if fin.size < K:
+            continue
+        j = int(fin[0])
+        hit = index.get(row[j:j + K].tobytes())
+        if hit is None:
+            continue
+        y, pos = hit
+        out[i] = y * 100 + (pos - j + m) // C.BLOCK
+    miss = int((out < 0).sum())
+    if miss:
+        print(f"  [блоки] L={L}: не найдено положение {miss} из {len(out)} окон — "
+              f"бутстрэп по окнам (ДИ занижен); пересчитай дамп через bench_run.py")
+        return None
+    return out
+
+
+blocks_for._cache = {}
 
 
 def load(path):
@@ -78,32 +147,32 @@ def gap(d, L, key):
     return d[f"L{L}_{key}"][:, m:m + L].astype(np.float64)
 
 
-def bootstrap_ci(err, se, m=CI_M, reps=CI_REPS, seed=CI_SEED):
+def bootstrap_ci(err, se, blocks=None, m=CI_M, reps=CI_REPS, seed=CI_SEED):
     """95% перцентильный бутстрэп-ДИ для MAE, RMSE, P95(|ошибка|) и
     P95(RMSE по окнам) — НЕЗАВИСИМО для одного метода (не парный: см.
     paired_bootstrap_ci, если нужно убрать общий шум выборки при сравнении
     двух методов на одних и тех же окнах).
 
-    Ресэмплинг ПО ОКНАМ (строкам err/se), не по отдельным точкам: точки
-    внутри одной дыры зависимы (один шторм даёт много плохих точек подряд),
-    и бутстрэп по точкам занизил бы интервал в разы. На каждом повторе
-    берутся m окон С ВОЗВРАЩЕНИЕМ из имеющихся n (m может быть меньше,
-    равно или больше n — это просто количество тянущихся окон), метрика
-    пересчитывается заново; границы ДИ — 2.5-й и 97.5-й перцентиль по
-    получившимся reps значениям.
+    Ресэмплинг БЛОЧНЫЙ, по календарным неделям (blocks — номер блока каждого
+    окна, см. _resample_idx), а не по точкам и не по окнам. По точкам нельзя:
+    точки одной дыры зависимы (один шторм даёт много плохих точек подряд).
+    По окнам тоже нельзя: окна в дампе берутся случайно из одного года и
+    перекрываются — при 1024 дырах по 4320 мин каждая минута года лежит в
+    ~8 дырах, и бутстрэп по окнам считает один и тот же шторм восемью
+    независимыми наблюдениями (проверено: на 4320 мин ДИ по окнам уже
+    блочного в ~1.5–2 раза, а на ≤60 мин они совпадают — там дыры не
+    пересекаются). Границы ДИ — 2.5-й и 97.5-й перцентиль по reps повторам.
 
     err — |pred-true| поточечно (n_окон, L); se — (pred-true)^2, той же формы.
     Возвращает (mae_lo, mae_hi, rmse_lo, rmse_hi,
                 p95_lo, p95_hi, rmse_p95_lo, rmse_p95_hi)."""
     n = err.shape[0]
     rng = np.random.default_rng(seed)
-    idxs = rng.integers(0, n, size=(reps, m))
     mae_boot = np.empty(reps)
     rmse_boot = np.empty(reps)
     p95_boot = np.empty(reps)
     rmse_p95_boot = np.empty(reps)
-    for i in range(reps):
-        idx = idxs[i]
+    for i, idx in enumerate(_resample_idx(n, blocks, rng, reps, m)):
         mae_boot[i] = np.nanmean(err[idx])
         rmse_boot[i] = np.sqrt(np.nanmean(se[idx]))
         p95_boot[i] = np.nanpercentile(err[idx], 95)
@@ -117,8 +186,8 @@ def bootstrap_ci(err, se, m=CI_M, reps=CI_REPS, seed=CI_SEED):
             float(p95_lo), float(p95_hi), float(r95_lo), float(r95_hi))
 
 
-def paired_bootstrap_ci(err_a, se_a, err_b, se_b, key, m=CI_M, reps=CI_REPS,
-                         seed=CI_SEED):
+def paired_bootstrap_ci(err_a, se_a, err_b, se_b, key, blocks=None, m=CI_M,
+                         reps=CI_REPS, seed=CI_SEED):
     """Парный 95% бутстрэп-ДИ на разницу (a − b) метрики key ('MAE', 'RMSE',
     'P95' или 'RMSE_P95') между двумя методами на ОДНИХ И ТЕХ ЖЕ окнах.
 
@@ -126,6 +195,10 @@ def paired_bootstrap_ci(err_a, se_a, err_b, se_b, key, m=CI_M, reps=CI_REPS,
     каждом повторе ОБА метода ресэмплируются по ОДНОМУ И ТОМУ ЖЕ набору
     индексов окон — это убирает из разницы общий шум выборки (окно с
     сильным штормом одинаково утяжелит обоих, и в разности сокращается).
+    Ресэмплинг блочный по неделям (blocks), по той же причине, что и в
+    bootstrap_ci: окна перекрываются, и по-оконный ДИ на длинных дырах
+    занижен — мелкие «значимые» разницы между сетями (0.03 нТл на 4320 мин)
+    при блочном бутстрэпе значимость теряют.
     Независимые интервалы шире и почти всегда пересекаются даже там, где
     парная разница значима — они годятся только для грубой прикидки
     (непересечение надёжно подтверждает различие, а вот пересечение НЕ
@@ -138,10 +211,10 @@ def paired_bootstrap_ci(err_a, se_a, err_b, se_b, key, m=CI_M, reps=CI_REPS,
     Возвращает (mean_diff, lo, hi, significant) для метрики key."""
     n = min(err_a.shape[0], err_b.shape[0])
     rng = np.random.default_rng(seed)
-    idxs = rng.integers(0, n, size=(reps, m))
+    if blocks is not None:
+        blocks = blocks[:n]
     diffs = np.empty(reps)
-    for i in range(reps):
-        idx = idxs[i]
+    for i, idx in enumerate(_resample_idx(n, blocks, rng, reps, m)):
         if key == "MAE":
             diffs[i] = np.nanmean(err_a[idx]) - np.nanmean(err_b[idx])
         elif key == "RMSE":
@@ -176,7 +249,7 @@ def mape_log(pred, true, eps=1e-6):
     return float(np.nanmean(np.abs(np.log(r))) * 100.0)
 
 
-def basic_metrics(t, pm, sel, ci=True):
+def basic_metrics(t, pm, sel, ci=True, blocks=None):
     """MAE, RMSE, NSE, NMAE, MAPE, P95, RMSE_P95 — все на выбранном подмножестве окон.
 
     MAE/RMSE/NSE/NMAE/MAPE/P95 — пул по всем точкам дыры (не среднее
@@ -213,7 +286,8 @@ def basic_metrics(t, pm, sel, ci=True):
            "P95": p95, "RMSE_P95": rmse_p95}
     if ci:
         (mae_lo, mae_hi, rmse_lo, rmse_hi,
-         p95_lo, p95_hi, r95_lo, r95_hi) = bootstrap_ci(err, se)
+         p95_lo, p95_hi, r95_lo, r95_hi) = bootstrap_ci(
+            err, se, blocks=None if blocks is None else blocks[sel])
         out["MAE_CI_LO"] = mae_lo
         out["MAE_CI_HI"] = mae_hi
         out["RMSE_CI_LO"] = rmse_lo
@@ -248,9 +322,10 @@ def run(args):
         t = gap(d, L, "true")
         pm = gap(d, L, "pred")
         act = d[f"L{L}_act"]
+        blk = None if args.no_ci else blocks_for(d, L, setname)
 
         for sub, sel in subsets(act).items():
-            v = basic_metrics(t, pm, sel, ci=not args.no_ci)
+            v = basic_metrics(t, pm, sel, ci=not args.no_ci, blocks=blk)
             for k, val in v.items():
                 rows.append((k, L, sub, val))
 
@@ -266,7 +341,7 @@ def run(args):
         print(f"{L:>6} " + " ".join(cells))
 
     if not args.no_ci:
-        print(f"\n95% ДИ (бутстрэп по окнам, m={CI_M}, повторов={CI_REPS}), subset=all:")
+        print(f"\n95% ДИ (блочный бутстрэп по неделям, повторов={CI_REPS}), subset=all:")
         print(f"{'len':>6} {'MAE':>9} {'MAE 95%ДИ':>18} {'RMSE':>9} {'RMSE 95%ДИ':>18} "
               f"{'P95':>9} {'P95 95%ДИ':>18} {'RMSE_P95':>9} {'RMSE_P95 95%ДИ':>18}")
         for L in lengths:
@@ -319,7 +394,7 @@ def run_cross_station(args, d, method, setname, lengths):
     code_b = other_setname.split("_")[0]
     print(f"\n--- межстанционное сравнение (P95): {setname} против "
           f"{other_setname}, метод {method} "
-          f"(бутстрэп по окнам, m={CI_M}, повторов={CI_REPS}) ---")
+          f"(блочный бутстрэп по неделям, повторов={CI_REPS}) ---")
     print(f"{'len':>6} {'P95 diff':>9} {'95% ДИ':>18} {'значимо':>8}  окон  вердикт")
 
     prows = []
@@ -338,7 +413,9 @@ def run_cross_station(args, d, method, setname, lengths):
             continue
         err_a, se_a = np.abs(pm[:n] - t[:n]), (pm[:n] - t[:n]) ** 2
         err_b, se_b = np.abs(pb[:n] - tb[:n]), (pb[:n] - tb[:n]) ** 2
-        m_, lo, hi, sig = paired_bootstrap_ci(err_a, se_a, err_b, se_b, "P95")
+        # окна выровнены по времени, поэтому блоки у обеих станций одни
+        m_, lo, hi, sig = paired_bootstrap_ci(err_a, se_a, err_b, se_b, "P95",
+                                              blocks=blocks_for(d, L, setname))
         # разница = a − b (P95 ошибки; меньше = точнее): значимо и <0 -> a
         # точнее, значимо и >0 -> b точнее, ДИ накрывает 0 -> не отличается
         if not sig:
@@ -368,7 +445,7 @@ def run_paired(args, d, method, setname, lengths):
     b = load(args.base)
     base_method = str(b["method"])
     print(f"\n--- парное сравнение: {method} против {base_method} "
-          f"(бутстрэп по окнам, m={CI_M}, повторов={CI_REPS}) ---")
+          f"(блочный бутстрэп по неделям, повторов={CI_REPS}) ---")
     print(f"{'len':>6} {'metric':>9} {'diff':>9} {'95% ДИ':>18} {'значимо':>8}")
 
     prows = []
@@ -383,8 +460,10 @@ def run_paired(args, d, method, setname, lengths):
             continue
         err_a, se_a = np.abs(pm - t), (pm - t) ** 2
         err_b, se_b = np.abs(pb - tb), (pb - tb) ** 2
+        blk = blocks_for(d, L, setname)
         for key in ("MAE", "RMSE", "P95", "RMSE_P95"):
-            m_, lo, hi, sig = paired_bootstrap_ci(err_a, se_a, err_b, se_b, key)
+            m_, lo, hi, sig = paired_bootstrap_ci(err_a, se_a, err_b, se_b, key,
+                                                  blocks=blk)
             prows.append((key, L, m_, lo, hi, sig))
             print(f"{L:>6} {key:>9} {m_:>+9.3f} {f'[{lo:+.2f}, {hi:+.2f}]':>18} "
                   f"{'да' if sig else 'нет':>8}")
