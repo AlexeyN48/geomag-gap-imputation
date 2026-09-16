@@ -1,7 +1,7 @@
-r"""Семь метрик качества восстановления плюс бутстрэп-ДИ на P95/RMSE_P95.
+r"""Восемь метрик качества восстановления плюс блочный бутстрэп-ДИ.
 
-Метрики MAE, RMSE, NSE, NMAE, MAPE, P95 считаются по точкам внутри дыры (пул
-по всем окнам), RMSE_P95 — по-окнам:
+Метрики MAE, RMSE, NSE, NMAE, MAPE, P95, SS считаются по точкам внутри дыры
+(пул по всем окнам), RMSE_P95 — по-окнам:
   MAE       средняя абсолютная ошибка, нТл
   RMSE      корень из среднеквадратичной ошибки, нТл — штрафует крупные промахи
   NSE       1 − MSE/Var_w(true), где Var_w — ВНУТРИДЫРНАЯ дисперсия истины:
@@ -33,6 +33,18 @@ r"""Семь метрик качества восстановления плюс
             константа), MAPE здесь по существу масштабированная MAE и НЕ несёт
             информации, независимой от неё, — метрика добавлена по запросу, а
             не потому что здесь есть подходящая для процентной ошибки шкала.
+  SS        skill score относительно PCHIP: 1 − MAE(метод)/MAE(PCHIP) на ТЕХ ЖЕ
+            окнах. 1 = идеал, 0 = не лучше интерполяции по краям дыры, <0 =
+            хуже неё. Это относительная метрика, нормированная не на разброс
+            истины (как NSE/NMAE), а на ошибку тривиального метода, который
+            видит тот же контекст, — то есть на то, что «и так можно было
+            получить». Одинаково читается на всех длинах и станциях (базлайн
+            считается на той же станции), поэтому годится для сравнения
+            переноса: если SS модели на чужой станции падает, а на своей нет —
+            модель не переносится, а не «станция труднее». Дамп PCHIP ищется
+            автоматически (dump_pchip_<набор>.npz, для окон W=12960 —
+            dump_pchip_w13k_<набор>.npz) и проверяется на побитовое совпадение
+            окон; без него SS не считается. ДИ — блочный бутстрэп отношения.
   P95       95-й перцентиль |ошибка| по всем точкам всех окон — хвост поточечно:
             редкая, но крупная ошибка внутри отдельных минут дыры
   RMSE_P95  95-й перцентиль RMSE, посчитанного ОТДЕЛЬНО для каждого окна —
@@ -147,6 +159,79 @@ def gap(d, L, key):
     return d[f"L{L}_{key}"][:, m:m + L].astype(np.float64)
 
 
+class _WinStats:
+    """Посуммированные по окнам величины, чтобы бутстрэп не копировал массив
+    (n_окон × L) на каждом повторе: ресэмпл окон с возвращением — это вектор
+    кратностей mult (bincount индексов), и любая «средняя по точкам» метрика
+    считается как взвешенная сумма по окнам за O(n). Перцентиль по точкам —
+    взвешенный перцентиль по один раз отсортированным точкам (веса — кратность
+    окна каждой точки), O(n·L) без копий. На 1024×4320 это даёт ~50× против
+    fancy-indexing + nanpercentile на каждом повторе.
+
+    P95 по точкам в бутстрэпе считается по гистограмме: все точки один раз
+    раскладываются по NB квантильным корзинам (границы — квантили пула), на
+    окно хранится вектор счётчиков, и на повторе взвешенная гистограмма —
+    одно умножение mult @ hist (n × NB). Значение перцентиля — верхняя
+    граница корзины, в которую попал 95-й процент веса; разрешение — одна
+    корзина, т.е. 1/NB доли точек пула вокруг P95, что на порядки уже
+    самого ДИ. Точечная оценка P95 в basic_metrics по-прежнему точная
+    (nanpercentile) — приближение только в границах ДИ. Пока точек в пуле
+    не больше EXACT_MAX (короткие дыры: 1024×240 = 245 тыс.), перцентиль
+    считается точно — взвешенно по один раз отсортированным точкам; там
+    корзины были бы грубыми (на L=5 — по 2–3 точки на корзину), а точный
+    путь и так дёшев."""
+
+    NB = 2048
+    EXACT_MAX = 400_000
+
+    def __init__(self, err, se=None):
+        fin = np.isfinite(err)
+        n = err.shape[0]
+        self.cnt = fin.sum(axis=1).astype(np.float64)
+        self.sum_abs = np.nansum(err, axis=1)
+        if se is not None:
+            self.sum_se = np.nansum(se, axis=1)
+            self.win_rmse = np.sqrt(self.sum_se / np.maximum(self.cnt, 1))
+            o = np.argsort(self.win_rmse)
+            self.wr_sorted, self.wr_order = self.win_rmse[o], o
+        vals = err[fin]
+        win = np.broadcast_to(np.arange(n)[:, None], err.shape)[fin]
+        self.exact = vals.size <= self.EXACT_MAX
+        if self.exact:
+            o = np.argsort(vals, kind="stable")
+            self.pt_sorted = vals[o]
+            self.pt_win = win[o].astype(np.int32)
+        else:
+            self.edges = np.quantile(vals, np.linspace(0.0, 1.0, self.NB + 1))
+            b = np.clip(np.searchsorted(self.edges, vals, side="right") - 1, 0, self.NB - 1)
+            self.hist = np.bincount(win.astype(np.int64) * self.NB + b,
+                                    minlength=n * self.NB).reshape(n, self.NB).astype(np.float64)
+
+    def mult(self, idx):
+        return np.bincount(idx, minlength=self.cnt.size).astype(np.float64)
+
+    def mae(self, mult):
+        return float((mult * self.sum_abs).sum() / (mult * self.cnt).sum())
+
+    def rmse(self, mult):
+        return float(np.sqrt((mult * self.sum_se).sum() / (mult * self.cnt).sum()))
+
+    @staticmethod
+    def _wperc(sorted_vals, w, q):
+        c = np.cumsum(w)
+        return float(sorted_vals[min(np.searchsorted(c, q * c[-1]), c.size - 1)])
+
+    def p95(self, mult):
+        if self.exact:
+            return self._wperc(self.pt_sorted, mult[self.pt_win], 0.95)
+        c = np.cumsum(mult @ self.hist)
+        k = min(int(np.searchsorted(c, 0.95 * c[-1])), self.NB - 1)
+        return float(self.edges[k + 1])
+
+    def rmse_p95(self, mult):
+        return self._wperc(self.wr_sorted, mult[self.wr_order], 0.95)
+
+
 def bootstrap_ci(err, se, blocks=None, m=CI_M, reps=CI_REPS, seed=CI_SEED):
     """95% перцентильный бутстрэп-ДИ для MAE, RMSE, P95(|ошибка|) и
     P95(RMSE по окнам) — НЕЗАВИСИМО для одного метода (не парный: см.
@@ -168,22 +253,65 @@ def bootstrap_ci(err, se, blocks=None, m=CI_M, reps=CI_REPS, seed=CI_SEED):
                 p95_lo, p95_hi, rmse_p95_lo, rmse_p95_hi)."""
     n = err.shape[0]
     rng = np.random.default_rng(seed)
+    st = _WinStats(err, se)
     mae_boot = np.empty(reps)
     rmse_boot = np.empty(reps)
     p95_boot = np.empty(reps)
     rmse_p95_boot = np.empty(reps)
     for i, idx in enumerate(_resample_idx(n, blocks, rng, reps, m)):
-        mae_boot[i] = np.nanmean(err[idx])
-        rmse_boot[i] = np.sqrt(np.nanmean(se[idx]))
-        p95_boot[i] = np.nanpercentile(err[idx], 95)
-        win_rmse = np.sqrt(np.nanmean(se[idx], axis=1))
-        rmse_p95_boot[i] = np.nanpercentile(win_rmse, 95)
+        mult = st.mult(idx)
+        mae_boot[i] = st.mae(mult)
+        rmse_boot[i] = st.rmse(mult)
+        p95_boot[i] = st.p95(mult)
+        rmse_p95_boot[i] = st.rmse_p95(mult)
     mae_lo, mae_hi = np.percentile(mae_boot, [2.5, 97.5])
     rmse_lo, rmse_hi = np.percentile(rmse_boot, [2.5, 97.5])
     p95_lo, p95_hi = np.percentile(p95_boot, [2.5, 97.5])
     r95_lo, r95_hi = np.percentile(rmse_p95_boot, [2.5, 97.5])
     return (float(mae_lo), float(mae_hi), float(rmse_lo), float(rmse_hi),
             float(p95_lo), float(p95_hi), float(r95_lo), float(r95_hi))
+
+
+def skill_ci(err, err_base, blocks=None, m=CI_M, reps=CI_REPS, seed=CI_SEED):
+    """95% блочный бутстрэп-ДИ для SS = 1 − mean(err)/mean(err_base): на каждом
+    повторе оба массива ресэмплируются по ОДНИМ индексам окон (парно, как в
+    paired_bootstrap_ci — общий шторм сокращается в отношении).
+    Возвращает (lo, hi)."""
+    n = min(err.shape[0], err_base.shape[0])
+    rng = np.random.default_rng(seed)
+    if blocks is not None:
+        blocks = blocks[:n]
+    sa, sb = _WinStats(err[:n]), _WinStats(err_base[:n])
+    boot = np.empty(reps)
+    for i, idx in enumerate(_resample_idx(n, blocks, rng, reps, m)):
+        mult = sa.mult(idx)
+        boot[i] = 1.0 - sa.mae(mult) / sb.mae(mult)
+    lo, hi = np.percentile(boot, [2.5, 97.5])
+    return float(lo), float(hi)
+
+
+def find_base(d, setname):
+    """Дамп PCHIP на тех же окнах, что d: {L: |pred_pchip − true|} или None.
+    Кандидаты — pchip и pchip_w13k (окна W=12960 у *_w13k-моделей); берётся
+    тот, чья истина совпадает с d побитово на всех длинах d."""
+    for cand in ("pchip", "pchip_w13k"):
+        path = os.path.join(DATA, f"dump_{cand}_{setname}.npz")
+        if not os.path.exists(path):
+            continue
+        b = load(path)
+        ok, out = True, {}
+        for L in [int(x) for x in d["lengths"]]:
+            if f"L{L}_true" not in b:
+                ok = False
+                break
+            t, tb = gap(d, L, "true"), gap(b, L, "true")
+            if t.shape != tb.shape or not np.allclose(t, tb, equal_nan=True):
+                ok = False
+                break
+            out[L] = np.abs(gap(b, L, "pred") - tb)
+        if ok:
+            return cand, out
+    return None, None
 
 
 def paired_bootstrap_ci(err_a, se_a, err_b, se_b, key, blocks=None, m=CI_M,
@@ -213,23 +341,17 @@ def paired_bootstrap_ci(err_a, se_a, err_b, se_b, key, blocks=None, m=CI_M,
     rng = np.random.default_rng(seed)
     if blocks is not None:
         blocks = blocks[:n]
+    if key not in ("MAE", "RMSE", "P95", "RMSE_P95"):
+        raise ValueError(f"paired_bootstrap_ci: неизвестный key {key!r}, "
+                         f"ожидается 'MAE', 'RMSE', 'P95' или 'RMSE_P95'")
+    sa = _WinStats(err_a[:n], se_a[:n])
+    sb = _WinStats(err_b[:n], se_b[:n])
+    fn = {"MAE": _WinStats.mae, "RMSE": _WinStats.rmse,
+          "P95": _WinStats.p95, "RMSE_P95": _WinStats.rmse_p95}[key]
     diffs = np.empty(reps)
     for i, idx in enumerate(_resample_idx(n, blocks, rng, reps, m)):
-        if key == "MAE":
-            diffs[i] = np.nanmean(err_a[idx]) - np.nanmean(err_b[idx])
-        elif key == "RMSE":
-            diffs[i] = (np.sqrt(np.nanmean(se_a[idx]))
-                        - np.sqrt(np.nanmean(se_b[idx])))
-        elif key == "P95":
-            diffs[i] = (np.nanpercentile(err_a[idx], 95)
-                        - np.nanpercentile(err_b[idx], 95))
-        elif key == "RMSE_P95":
-            wa = np.sqrt(np.nanmean(se_a[idx], axis=1))
-            wb = np.sqrt(np.nanmean(se_b[idx], axis=1))
-            diffs[i] = np.nanpercentile(wa, 95) - np.nanpercentile(wb, 95)
-        else:
-            raise ValueError(f"paired_bootstrap_ci: неизвестный key {key!r}, "
-                              f"ожидается 'MAE', 'RMSE', 'P95' или 'RMSE_P95'")
+        mult = sa.mult(idx)
+        diffs[i] = fn(sa, mult) - fn(sb, mult)
     lo, hi = np.percentile(diffs, [2.5, 97.5])
     significant = bool((lo > 0) == (hi > 0))
     return float(diffs.mean()), float(lo), float(hi), significant
@@ -249,7 +371,7 @@ def mape_log(pred, true, eps=1e-6):
     return float(np.nanmean(np.abs(np.log(r))) * 100.0)
 
 
-def basic_metrics(t, pm, sel, ci=True, blocks=None):
+def basic_metrics(t, pm, sel, ci=True, blocks=None, base_err=None):
     """MAE, RMSE, NSE, NMAE, MAPE, P95, RMSE_P95 — все на выбранном подмножестве окон.
 
     MAE/RMSE/NSE/NMAE/MAPE/P95 — пул по всем точкам дыры (не среднее
@@ -258,6 +380,9 @@ def basic_metrics(t, pm, sel, ci=True, blocks=None):
     модуля, почему общая дисперсия по всем окнам здесь не годится). MAPE
     делит на абсолютный уровень поля (~5.7e4 нТл) и потому вырождается
     (знаменатель почти константа, см. mape_log).
+
+    SS — по base_err (|pred_pchip − true| на тех же окнах, см. find_base):
+    1 − MAE/MAE_pchip на подмножестве sel; без base_err не считается.
 
     RMSE_P95 — другое: RMSE считается ОТДЕЛЬНО для каждого окна (ось точек
     внутри окна), и только потом берётся перцентиль ПО ОКНАМ. Это отвечает
@@ -284,6 +409,13 @@ def basic_metrics(t, pm, sel, ci=True, blocks=None):
     rmse_p95 = float(np.nanpercentile(win_rmse, 95))
     out = {"MAE": mae, "RMSE": rmse, "NSE": nse, "NMAE": nmae, "MAPE": mape,
            "P95": p95, "RMSE_P95": rmse_p95}
+    if base_err is not None:
+        eb = base_err[sel]
+        mae_b = float(np.nanmean(eb))
+        out["SS"] = (1.0 - mae / mae_b) if mae_b > 0 else np.nan
+        if ci:
+            out["SS_CI_LO"], out["SS_CI_HI"] = skill_ci(
+                err, eb, blocks=None if blocks is None else blocks[sel])
     if ci:
         (mae_lo, mae_hi, rmse_lo, rmse_hi,
          p95_lo, p95_hi, r95_lo, r95_hi) = bootstrap_ci(
@@ -313,7 +445,12 @@ def run(args):
     method = str(d["method"])
     setname = str(d["setname"])
 
-    print(f"метод: {method}   набор: {setname}\n")
+    print(f"метод: {method}   набор: {setname}")
+    base_name, base_err = find_base(d, setname)
+    if base_err is None:
+        print("SS: дамп PCHIP на этих окнах не найден — skill score не считается\n")
+    else:
+        print(f"SS: базлайн {base_name} (окна совпадают)\n")
 
     rows = []
     for L in lengths:
@@ -325,12 +462,13 @@ def run(args):
         blk = None if args.no_ci else blocks_for(d, L, setname)
 
         for sub, sel in subsets(act).items():
-            v = basic_metrics(t, pm, sel, ci=not args.no_ci, blocks=blk)
+            v = basic_metrics(t, pm, sel, ci=not args.no_ci, blocks=blk,
+                              base_err=None if base_err is None else base_err[L])
             for k, val in v.items():
                 rows.append((k, L, sub, val))
 
     idx = {(k, L, s): v for k, L, s, v in rows}
-    keys = ["MAE", "RMSE", "NSE", "NMAE", "MAPE", "P95", "RMSE_P95"]
+    keys = ["MAE", "RMSE", "NSE", "NMAE", "MAPE", "P95", "RMSE_P95", "SS"]
     print(f"{'len':>6} " + " ".join(f"{h:>9}" for h in keys))
     print("-" * (7 + 10 * len(keys)))
     for L in lengths:
@@ -343,7 +481,8 @@ def run(args):
     if not args.no_ci:
         print(f"\n95% ДИ (блочный бутстрэп по неделям, повторов={CI_REPS}), subset=all:")
         print(f"{'len':>6} {'MAE':>9} {'MAE 95%ДИ':>18} {'RMSE':>9} {'RMSE 95%ДИ':>18} "
-              f"{'P95':>9} {'P95 95%ДИ':>18} {'RMSE_P95':>9} {'RMSE_P95 95%ДИ':>18}")
+              f"{'P95':>9} {'P95 95%ДИ':>18} {'RMSE_P95':>9} {'RMSE_P95 95%ДИ':>18} "
+              f"{'SS':>7} {'SS 95%ДИ':>16}")
         for L in lengths:
             mae = idx.get(("MAE", L, "all"), np.nan)
             rmse = idx.get(("RMSE", L, "all"), np.nan)
@@ -353,10 +492,14 @@ def run(args):
             rmlo, rmhi = idx.get(("RMSE_CI_LO", L, "all"), np.nan), idx.get(("RMSE_CI_HI", L, "all"), np.nan)
             lo, hi = idx.get(("P95_CI_LO", L, "all"), np.nan), idx.get(("P95_CI_HI", L, "all"), np.nan)
             rlo, rhi = idx.get(("RMSE_P95_CI_LO", L, "all"), np.nan), idx.get(("RMSE_P95_CI_HI", L, "all"), np.nan)
+            ss = idx.get(("SS", L, "all"), np.nan)
+            slo, shi = idx.get(("SS_CI_LO", L, "all"), np.nan), idx.get(("SS_CI_HI", L, "all"), np.nan)
+            ss_txt = ("      -" if not np.isfinite(ss) else f"{ss:>7.3f}")
+            ss_ci = ("               -" if not np.isfinite(slo) else f"{f'[{slo:.2f}, {shi:.2f}]':>16}")
             print(f"{L:>6} {mae:>9.3f} {f'[{mlo:.2f}, {mhi:.2f}]':>18} "
                   f"{rmse:>9.3f} {f'[{rmlo:.2f}, {rmhi:.2f}]':>18} "
                   f"{p95:>9.3f} {f'[{lo:.2f}, {hi:.2f}]':>18} "
-                  f"{r95:>9.3f} {f'[{rlo:.2f}, {rhi:.2f}]':>18}")
+                  f"{r95:>9.3f} {f'[{rlo:.2f}, {rhi:.2f}]':>18} {ss_txt} {ss_ci}")
 
     tag = f"{method}_{setname}"
     out = args.out or os.path.join(DATA, f"metrics_{tag}.csv")

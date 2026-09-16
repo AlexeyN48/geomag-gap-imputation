@@ -111,16 +111,18 @@ METHODS = {"mean": fill_mean, "locf": fill_locf, "linear": fill_linear,
 
 
 # ------------------------------------------------------------ прогон
-def resolve(method):
+def resolve(method, ckpt=None):
     """Классический метод по имени либо обученная модель по имени чекпойнта.
     Обе ветки возвращают функцию (окно, начало) -> заполненное окно, поэтому
-    дальше прогон одинаков и дампы получаются одного формата."""
+    дальше прогон одинаков и дампы получаются одного формата.
+    ckpt — явный путь к .pt (bench_grid.py: ячейки лежат в models/grid/);
+    method тогда только имя для дампа."""
     if method in METHODS:
         fn = METHODS[method]
         return (lambda inp, start: fn(inp)), None
     import torch
     import bench_models as BM
-    path = os.path.join(os.path.dirname(__file__), "..", "models", f"{method}.pt")
+    path = ckpt or os.path.join(os.path.dirname(__file__), "..", "models", f"{method}.pt")
     if not os.path.exists(path):
         raise SystemExit(f"нет ни метода, ни чекпойнта «{method}»")
     dev = "cuda" if torch.cuda.is_available() else "cpu"
@@ -139,6 +141,7 @@ def _build_length_fields(smps, fn, acts, L):
     pr = np.full((n, span), np.nan, np.float32)
     act = np.zeros(n, np.float32)
     g0 = np.zeros(n, np.int32)
+    blk = np.zeros(n, np.int32)
     errs = []
     for i, s in enumerate(smps):
         pred = fn(s["input"], s["start"])
@@ -153,7 +156,12 @@ def _build_length_fields(smps, fn, acts, L):
         st = s["start"]
         act[i] = acts[s["year"]][st:st + C.W].mean()
         g0[i] = a
-    return dict(true=tr, pred=pr, act=act, gap0=g0), float(np.mean(errs))
+        # блок для блочного бутстрэпа (bench_metrics): год и календарная
+        # неделя, в которую попадает НАЧАЛО дыры. Окна в дампе перекрываются
+        # (на длинных дырах каждая минута года лежит в ~8 дырах), поэтому
+        # ресэмплировать по окнам нельзя — только неделями целиком.
+        blk[i] = int(s["year"]) * 100 + (st + a) // C.BLOCK
+    return dict(true=tr, pred=pr, act=act, gap0=g0, block=blk), float(np.mean(errs))
 
 
 def _save_dump(args, code, lengths, fields_by_L):
@@ -163,24 +171,52 @@ def _save_dump(args, code, lengths, fields_by_L):
         out[f"L{L}_pred"] = fields["pred"]
         out[f"L{L}_act"] = fields["act"]
         out[f"L{L}_gap0"] = fields["gap0"]
+        out[f"L{L}_block"] = fields["block"]
     setname = f"{code}_{args.split}"
     out["method"] = np.array(args.method)
     out["setname"] = np.array(setname)
     out["lengths"] = np.array(lengths, np.int32)
     out["margin"] = np.array(C.MARGIN, np.int32)
     out["seed"] = np.array(C.SEED, np.int32)
-    path = os.path.join(C.DATA, f"dump_{args.method}_{setname}.npz")
+    out_dir = getattr(args, "out_dir", None) or C.DATA
+    os.makedirs(out_dir, exist_ok=True)
+    path = os.path.join(out_dir, f"dump_{args.method}_{setname}.npz")
     np.savez_compressed(path, **out)
     print(f"сохранено: {path}  ({os.path.getsize(path) / 1e6:.1f} МБ)")
 
 
+def window_plan(lengths, gather_fn):
+    """Окна для запрошенных длин — по тому же пути ГСЧ, что у существующих
+    дампов (см. C.LENGTHS_RNG_GROUPS): каждая группа длин идёт со своим
+    свежим генератором в своём порядке, а длины группы, которые НЕ запрошены,
+    всё равно прогоняются через gather (результат выбрасывается), чтобы
+    генератор дошёл до запрошенной длины в том же состоянии. Так частичный
+    прогон (--lengths 240) даёт те же окна, что полный, и любой новый дамп
+    сопоставим с остальными побитово. gather_fn(L, rng) -> сэмплы."""
+    want = set(lengths)
+    known = {L for g in C.LENGTHS_RNG_GROUPS for L in g}
+    unknown = sorted(want - known)
+    if unknown:
+        raise SystemExit(f"длины {unknown} не входят в C.LENGTHS_RNG_GROUPS — "
+                         f"добавь их новой группой, не меняя существующие")
+    out = {}
+    for group in C.LENGTHS_RNG_GROUPS:
+        if not (want & set(group)):
+            continue
+        rng = np.random.default_rng(C.SEED + 7)
+        for L in group:
+            smps = gather_fn(L, rng)
+            if L in want:
+                out[L] = smps
+    return [(L, out[L]) for L in lengths]
+
+
 def run(args):
-    fn, ck = resolve(args.method)
+    fn, ck = resolve(args.method, getattr(args, "ckpt", None))
     if ck is not None:
         print(f"чекпойнт: {args.method}.pt  шаг={ck['step']}  "
               f"val при обучении={ck['val']:.3f} нТл")
     lengths = args.lengths or C.LENGTHS
-    rng = np.random.default_rng(C.SEED + 7)
 
     if args.align_codes:
         # выровненный прогон: одни и те же (год, окно, позиция дыры) сразу
@@ -195,8 +231,8 @@ def run(args):
         print(f"{'len':>6}{'код':>6}{'окон':>6}{'MAE, нТл':>12}")
         print("-" * 30)
         fields_by_code = {c: {} for c in codes}
-        for L in lengths:
-            smps_by_code = C.gather_aligned(years_by_code, L, args.n, rng)
+        plan = window_plan(lengths, lambda L, rng: C.gather_aligned(years_by_code, L, args.n, rng))
+        for L, smps_by_code in plan:
             for c in codes:
                 fields, mae = _build_length_fields(smps_by_code[c], fn,
                                                     acts_by_code[c], L)
@@ -219,8 +255,8 @@ def run(args):
     print("-" * 24)
 
     fields_by_L = {}
-    for L in lengths:
-        smps = C.gather(years, L, args.n, rng)
+    plan = window_plan(lengths, lambda L, rng: C.gather(years, L, args.n, rng))
+    for L, smps in plan:
         fields, mae = _build_length_fields(smps, fn, acts, L)
         if fields is None:
             print(f"{L:>6}{0:>6}  нет окон")
@@ -237,6 +273,7 @@ def run(args):
             out[f"L{L}_pred"] = fields["pred"]
             out[f"L{L}_act"] = fields["act"]
             out[f"L{L}_gap0"] = fields["gap0"]
+            out[f"L{L}_block"] = fields["block"]
         out["method"] = np.array(args.method)
         out["setname"] = np.array(setname)
         out["lengths"] = np.array(lengths, np.int32)
@@ -268,6 +305,14 @@ def main():
     ap.add_argument("--n", type=int, default=128)
     ap.add_argument("--lengths", type=int, nargs="+", default=None)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--ckpt", default=None,
+                     help="явный путь к чекпойнту .pt вместо models/<method>.pt "
+                          "(имя дампа по-прежнему строится из --method)")
+    ap.add_argument("--out-dir", default=None,
+                     help="каталог для дампов вместо data/ (имя файла стандартное; "
+                          "работает и с --align-codes, где --out игнорируется) — "
+                          "для частичных прогонов (--lengths), которые потом "
+                          "сливаются в основной дамп")
     run(ap.parse_args())
 
 
