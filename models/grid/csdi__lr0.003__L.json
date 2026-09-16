@@ -1,0 +1,17 @@
+{
+ "arch": "csdi",
+ "params": 559057,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.003,
+ "best_val": 5.1631995493479925,
+ "scale": 25.5,
+ "kw": {
+  "n_channels": 128
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "seconds": 10840
+}

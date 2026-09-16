@@ -1,0 +1,14 @@
+{
+ "arch": "segrnn",
+ "params": 32706,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.001,
+ "best_val": 11.69283715178339,
+ "scale": 25.5,
+ "kw": {
+  "d_model": 64
+ },
+ "seconds": 457
+}

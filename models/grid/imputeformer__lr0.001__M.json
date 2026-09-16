@@ -1,0 +1,11 @@
+{
+ "arch": "imputeformer",
+ "params": 536261,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.001,
+ "best_val": 10.533054543087738,
+ "scale": 25.5,
+ "seconds": 4897
+}

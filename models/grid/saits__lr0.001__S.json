@@ -1,0 +1,18 @@
+{
+ "arch": "saits",
+ "params": 152248,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.001,
+ "best_val": 9.355148398854466,
+ "scale": 25.5,
+ "kw": {
+  "d_model": 64,
+  "d_ffn": 128
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "seconds": 4545
+}
