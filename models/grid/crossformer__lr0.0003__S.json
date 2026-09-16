@@ -1,0 +1,18 @@
+{
+ "arch": "crossformer",
+ "params": 2587077,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.0003,
+ "best_val": 10.49747380239521,
+ "scale": 25.5,
+ "kw": {
+  "d_model": 64,
+  "d_ffn": 64
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "seconds": 1032
+}

@@ -1,0 +1,11 @@
+{
+ "arch": "timesnet",
+ "params": 2755845,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.001,
+ "best_val": 10.321778996355116,
+ "scale": 25.5,
+ "seconds": 2846
+}

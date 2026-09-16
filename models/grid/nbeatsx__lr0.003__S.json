@@ -1,0 +1,17 @@
+{
+ "arch": "nbeatsx",
+ "params": 239938,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.003,
+ "best_val": 11.029357589169487,
+ "scale": 25.5,
+ "kw": {
+  "mlp": 128
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "seconds": 317
+}

@@ -1,0 +1,15 @@
+{
+ "arch": "segrnn",
+ "params": 114466,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.0003,
+ "best_val": 11.91462021608956,
+ "scale": 25.5,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "seconds": 391
+}
