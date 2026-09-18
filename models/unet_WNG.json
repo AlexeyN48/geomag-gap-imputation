@@ -1,0 +1,18 @@
+{
+ "arch": "unet",
+ "params": 4282437,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.003,
+ "best_val": 5.292027560576091,
+ "scale": 31.96484375,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "WNG",
+ "gap_pool_code": "ARS",
+ "cfg": "Z:\\University\\Institute_of_Geophysics_2.0\\models\\unet_best.json",
+ "seconds": 440
+}
