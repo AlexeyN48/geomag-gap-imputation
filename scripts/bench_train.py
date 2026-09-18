@@ -102,7 +102,27 @@ def main():
     ap.add_argument("--kw", nargs="*", default=[],
                     help="параметры ёмкости, напр. base=48 depth=5")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--code", default=C.CODE,
+                    help="станция обучения (train/val/scale — её; по умолчанию ARS)")
+    ap.add_argument("--gap-pool-code", default=C.CODE,
+                    help="станция, чьи реальные длины пропусков идут в пул GapSampler; "
+                         "по умолчанию ARS для всех — у KAK/HUA/HER своих пропусков нет, "
+                         "а распределение длин при обучении должно быть одинаковым")
+    ap.add_argument("--cfg", default=None,
+                    help="json чекпойнта (models/<arch>_best.json): взять оттуда lr, kw, "
+                         "steps, batch, accum, patch — всё, что не задано явно в командной строке")
     args = ap.parse_args()
+    if args.cfg:
+        # конфигурация-победитель грида: явные аргументы командной строки важнее json
+        with open(args.cfg, encoding="utf-8") as f:
+            cfgj = json.load(f)
+        for k in ("lr", "steps", "batch", "accum", "patch"):
+            if getattr(args, k) == ap.get_default(k) and k in cfgj:
+                setattr(args, k, cfgj[k])
+        if not args.kw and cfgj.get("kw"):
+            args.kw = [f"{k}={v}" for k, v in cfgj["kw"].items()]
+        if args.arch != cfgj.get("arch", args.arch):
+            raise SystemExit(f"--arch {args.arch} не совпадает с arch в {args.cfg}")
     # разбор key=val в int/float/строку — идёт в конструктор модели И в чекпойнт
     kw = {}
     for item in args.kw:
@@ -116,11 +136,12 @@ def main():
                 kw[k] = v
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    train = C.load_split("train")
-    val = C.load_split("val")
+    train = C.load_split("train", code=args.code)
+    val = C.load_split("val", code=args.code)
     scale = C.compute_scale(train)
     GMIN = 720 if args.long_only else C.GAP_MIN
-    sampler = C.GapSampler(train, gmin=GMIN)
+    pool_years = train if args.gap_pool_code == args.code else C.load_split("train", code=args.gap_pool_code)
+    sampler = C.GapSampler(pool_years, gmin=GMIN)
     rng = np.random.default_rng(C.SEED)
 
     M.set_patch(args.patch)          # представление входа до построения
@@ -138,9 +159,11 @@ def main():
     vals = build_valset(val, scale,
                         n=getattr(M.ARCH[args.arch], 'VAL_N', 96), gmin=GMIN)
     os.makedirs(MODELS, exist_ok=True)
-    out = args.out or os.path.join(MODELS, f"{args.arch}.pt")
+    out = args.out or os.path.join(MODELS, f"{args.arch}.pt" if args.code == C.CODE
+                                            else f"{args.arch}_{args.code}.pt")
 
-    print(f"устройство={device}  модель={args.arch}  параметров={npar/1e6:.3f} млн")
+    print(f"устройство={device}  модель={args.arch}  параметров={npar/1e6:.3f} млн  "
+          f"станция={args.code}  пул длин дыр={args.gap_pool_code} ({sampler.pool.size} реальных длин)")
     print(f"масштаб={scale:.1f} нТл  шагов={args.steps}  батч={args.batch}x{args.accum}"
           f"  окон валидации={len(vals)}")
     print(f"{'шаг':>7}{'train':>10}{'val, нТл':>11}{'lr':>10}{'сек':>8}")
@@ -185,6 +208,7 @@ def main():
         json.dump(dict(arch=args.arch, params=npar, steps=args.steps,
                        batch=args.batch, accum=args.accum, lr=args.lr,
                        best_val=best, scale=scale, kw=kw, patch=args.patch, window=int(C.W), long_only=args.long_only,
+                       code=args.code, gap_pool_code=args.gap_pool_code, cfg=args.cfg,
                        seconds=round(time.time() - t0)), f, ensure_ascii=False, indent=1)
 
 
