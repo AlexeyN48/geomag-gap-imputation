@@ -20,6 +20,10 @@ MISSING = 99998.0     # значения >= этого в IAGA означают 
 DELTA_MAX = 1000.0    # |G| ниже этого => G это поправка dF, а не модуль
 SPIKE_WIN = 11        # окно медианы для детекции засечек в reported-годах
 SPIKE_THR = 100.0     # нТл: |F - медиана| выше => артефакт
+GROSS_THR = 5000.0    # нТл: |F - медиана года| выше => физически невозможно, NaN
+                      # (для ВСЕХ типов данных; ловит одиночные «островки» внутри
+                      # пропусков, до которых скользящая медиана не дотягивается —
+                      # пример: CMO 2023, день 300, F = 249 нТл между двумя NaN)
 
 
 def minutes_in_year(y):
@@ -136,6 +140,11 @@ def process(path, args):
     spikes = 0
     if dtype == "reported":
         F, spikes = despike(F)
+    if F is not None and np.isfinite(F).any():
+        gross = np.isfinite(F) & (np.abs(F - np.nanmedian(F)) > GROSS_THR)
+        if gross.any():
+            F = F.copy(); F[gross] = np.nan
+            spikes += int(gross.sum())
 
     n = minutes_in_year(year)
     # исходная длина запоминается ДО приведения к сетке: файл, залезающий в
