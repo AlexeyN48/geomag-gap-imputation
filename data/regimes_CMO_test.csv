@@ -1,0 +1,269 @@
+method,kind,group,value
+pchip,MAE,5,1.17691
+pchip,Score,5,0
+pchip,MAE,15,2.34182
+pchip,Score,15,0
+pchip,MAE,60,7.08737
+pchip,Score,60,0
+pchip,MAE,120,8.98069
+pchip,Score,120,0
+pchip,MAE,240,15.5294
+pchip,Score,240,0
+pchip,MAE,480,17.8416
+pchip,Score,480,0
+pchip,MAE,720,22.7761
+pchip,Score,720,0
+pchip,MAE,1000,24.5514
+pchip,Score,1000,0
+pchip,MAE,1440,28.6571
+pchip,Score,1440,0
+pchip,MAE,2160,27.3876
+pchip,Score,2160,0
+pchip,MAE,2880,29.0004
+pchip,Score,2880,0
+pchip,MAE,4320,29.9417
+pchip,Score,4320,0
+pchip,MAE_gm,все длины,12.7539
+pchip,Score_gm,все длины,0
+pchip,MAE_gm,≤120 мин,3.63934
+pchip,Score_gm,≤120 мин,0
+pchip,MAE_gm,120–1000 мин,19.8398
+pchip,Score_gm,120–1000 мин,0
+pchip,MAE_gm,>1000 мин,28.732
+pchip,Score_gm,>1000 мин,0
+linear,MAE,5,1.30345
+linear,Score,5,-0.107524
+linear,MAE,15,2.47307
+linear,Score,15,-0.0560447
+linear,MAE,60,7.00805
+linear,Score,60,0.0111905
+linear,MAE,120,9.09346
+linear,Score,120,-0.0125567
+linear,MAE,240,15.7945
+linear,Score,240,-0.017071
+linear,MAE,480,17.9999
+linear,Score,480,-0.00887105
+linear,MAE,720,22.7419
+linear,Score,720,0.00150428
+linear,MAE,1000,24.502
+linear,Score,1000,0.00201369
+linear,MAE,1440,29.131
+linear,Score,1440,-0.0165352
+linear,MAE,2160,27.3295
+linear,Score,2160,0.00211887
+linear,MAE,2880,29.1029
+linear,Score,2880,-0.00353569
+linear,MAE,4320,29.66
+linear,Score,4320,0.00940713
+linear,MAE_gm,все длины,12.9558
+linear,Score_gm,все длины,-0.0158304
+linear,MAE_gm,≤120 мин,3.78586
+linear,Score_gm,≤120 мин,-0.0402599
+linear,MAE_gm,120–1000 мин,19.9504
+linear,Score_gm,120–1000 мин,-0.00557491
+linear,MAE_gm,>1000 мин,28.7921
+linear,Score_gm,>1000 мин,-0.00209136
+unet_best,MAE,5,6.89894
+unet_best,Score,5,-4.86192
+unet_best,MAE,15,5.73121
+unet_best,Score,15,-1.44733
+unet_best,MAE,60,8.71089
+unet_best,Score,60,-0.229074
+unet_best,MAE,120,10.7348
+unet_best,Score,120,-0.19532
+unet_best,MAE,240,16.5914
+unet_best,Score,240,-0.0683852
+unet_best,MAE,480,18.2625
+unet_best,Score,480,-0.0235924
+unet_best,MAE,720,21.2593
+unet_best,Score,720,0.0665987
+unet_best,MAE,1000,21.9534
+unet_best,Score,1000,0.105818
+unet_best,MAE,1440,22.6956
+unet_best,Score,1440,0.208031
+unet_best,MAE,2160,23.393
+unet_best,Score,2160,0.145852
+unet_best,MAE,2880,21.9485
+unet_best,Score,2880,0.243164
+unet_best,MAE,4320,23.2961
+unet_best,Score,4320,0.22195
+unet_best,MAE_gm,все длины,15.1127
+unet_best,Score_gm,все длины,-0.184948
+unet_best,MAE_gm,≤120 мин,7.79778
+unet_best,Score_gm,≤120 мин,-1.14264
+unet_best,MAE_gm,120–1000 мин,19.3921
+unet_best,Score_gm,120–1000 мин,0.0225662
+unet_best,MAE_gm,>1000 мин,22.826
+unet_best,Score_gm,>1000 мин,0.205557
+saits_best,MAE,5,10.7332
+saits_best,Score,5,-8.11985
+saits_best,MAE,15,13.0684
+saits_best,Score,15,-4.58045
+saits_best,MAE,60,16.1776
+saits_best,Score,60,-1.2826
+saits_best,MAE,120,16.2478
+saits_best,Score,120,-0.809196
+saits_best,MAE,240,22.0302
+saits_best,Score,240,-0.418606
+saits_best,MAE,480,22.5959
+saits_best,Score,480,-0.266469
+saits_best,MAE,720,24.5396
+saits_best,Score,720,-0.077426
+saits_best,MAE,1000,24.2726
+saits_best,Score,1000,0.0113565
+saits_best,MAE,1440,24.4834
+saits_best,Score,1440,0.145644
+saits_best,MAE,2160,24.9734
+saits_best,Score,2160,0.0881493
+saits_best,MAE,2880,23.158
+saits_best,Score,2880,0.201461
+saits_best,MAE,4320,24.226
+saits_best,Score,4320,0.190894
+saits_best,MAE_gm,все длины,19.8534
+saits_best,Score_gm,все длины,-0.556658
+saits_best,MAE_gm,≤120 мин,13.8569
+saits_best,Score_gm,≤120 мин,-2.80753
+saits_best,MAE_gm,120–1000 мин,23.335
+saits_best,Score_gm,120–1000 мин,-0.176172
+saits_best,MAE_gm,>1000 мин,24.201
+saits_best,Score_gm,>1000 мин,0.157702
+crossformer_best,MAE,5,12.0054
+crossformer_best,Score,5,-9.20078
+crossformer_best,MAE,15,11.3136
+crossformer_best,Score,15,-3.83109
+crossformer_best,MAE,60,11.8351
+crossformer_best,Score,60,-0.669884
+crossformer_best,MAE,120,12.8846
+crossformer_best,Score,120,-0.434696
+crossformer_best,MAE,240,17.2439
+crossformer_best,Score,240,-0.1104
+crossformer_best,MAE,480,16.988
+crossformer_best,Score,480,0.0478465
+crossformer_best,MAE,720,18.7986
+crossformer_best,Score,720,0.174638
+crossformer_best,MAE,1000,19.2113
+crossformer_best,Score,1000,0.217506
+crossformer_best,MAE,1440,19.9692
+crossformer_best,Score,1440,0.30317
+crossformer_best,MAE,2160,20.885
+crossformer_best,Score,2160,0.237426
+crossformer_best,MAE,2880,19.4531
+crossformer_best,Score,2880,0.329213
+crossformer_best,MAE,4320,20.9899
+crossformer_best,Score,4320,0.298974
+crossformer_best,MAE_gm,все длины,16.3803
+crossformer_best,Score_gm,все длины,-0.284341
+crossformer_best,MAE_gm,≤120 мин,11.9965
+crossformer_best,Score_gm,≤120 мин,-2.29633
+crossformer_best,MAE_gm,120–1000 мин,18.0349
+crossformer_best,Score_gm,120–1000 мин,0.0909706
+crossformer_best,MAE_gm,>1000 мин,20.3141
+crossformer_best,Score_gm,>1000 мин,0.29298
+timesnet_best,MAE,5,9.1786
+timesnet_best,Score,5,-6.79891
+timesnet_best,MAE,15,8.8426
+timesnet_best,Score,15,-2.77595
+timesnet_best,MAE,60,11.2021
+timesnet_best,Score,60,-0.580574
+timesnet_best,MAE,120,12.9971
+timesnet_best,Score,120,-0.447228
+timesnet_best,MAE,240,18.075
+timesnet_best,Score,240,-0.163918
+timesnet_best,MAE,480,16.78
+timesnet_best,Score,480,0.0595025
+timesnet_best,MAE,720,17.6039
+timesnet_best,Score,720,0.227089
+timesnet_best,MAE,1000,17.7603
+timesnet_best,Score,1000,0.276608
+timesnet_best,MAE,1440,18.3379
+timesnet_best,Score,1440,0.360095
+timesnet_best,MAE,2160,18.9828
+timesnet_best,Score,2160,0.306884
+timesnet_best,MAE,2880,17.6791
+timesnet_best,Score,2880,0.390383
+timesnet_best,MAE,4320,19.6913
+timesnet_best,Score,4320,0.342346
+timesnet_best,MAE_gm,все длины,15.057
+timesnet_best,Score_gm,все длины,-0.180586
+timesnet_best,MAE_gm,≤120 мин,10.4262
+timesnet_best,Score_gm,≤120 мин,-1.86486
+timesnet_best,MAE_gm,120–1000 мин,17.5482
+timesnet_best,Score_gm,120–1000 мин,0.115504
+timesnet_best,MAE_gm,>1000 мин,18.6578
+timesnet_best,Score_gm,>1000 мин,0.350627
+imputeformer_best,MAE,5,13.0643
+imputeformer_best,Score,5,-10.1006
+imputeformer_best,MAE,15,19.8171
+imputeformer_best,Score,15,-7.46227
+imputeformer_best,MAE,60,22.5289
+imputeformer_best,Score,60,-2.17874
+imputeformer_best,MAE,120,21.646
+imputeformer_best,Score,120,-1.41029
+imputeformer_best,MAE,240,24.8752
+imputeformer_best,Score,240,-0.601807
+imputeformer_best,MAE,480,22.2447
+imputeformer_best,Score,480,-0.246789
+imputeformer_best,MAE,720,22.696
+imputeformer_best,Score,720,0.00351802
+imputeformer_best,MAE,1000,22.5044
+imputeformer_best,Score,1000,0.0833763
+imputeformer_best,MAE,1440,22.54
+imputeformer_best,Score,1440,0.213461
+imputeformer_best,MAE,2160,22.8719
+imputeformer_best,Score,2160,0.164882
+imputeformer_best,MAE,2880,21.0494
+imputeformer_best,Score,2880,0.274169
+imputeformer_best,MAE,4320,22.1468
+imputeformer_best,Score,4320,0.260335
+imputeformer_best,MAE_gm,все длины,21.2702
+imputeformer_best,Score_gm,все длины,-0.667746
+imputeformer_best,MAE_gm,≤120 мин,18.85
+imputeformer_best,Score_gm,≤120 мин,-4.17951
+imputeformer_best,MAE_gm,120–1000 мин,23.057
+imputeformer_best,Score_gm,120–1000 мин,-0.16216
+imputeformer_best,MAE_gm,>1000 мин,22.1412
+imputeformer_best,Score_gm,>1000 мин,0.22939
+pchip,mean_rank,все длины,3.7919
+linear,mean_rank,все длины,3.9129
+unet_best,mean_rank,все длины,3.8694
+saits_best,mean_rank,все длины,5.3097
+crossformer_best,mean_rank,все длины,3.2855
+timesnet_best,mean_rank,все длины,2.5065
+imputeformer_best,mean_rank,все длины,5.3242
+,friedman_chi2,все длины,834.1
+,friedman_p,все длины,6.71e-177
+,nemenyi_CD,все длины,0.3618
+,N_cells,все длины,620
+pchip,mean_rank,≤120 мин,1.4737
+linear,mean_rank,≤120 мин,1.7656
+unet_best,mean_rank,≤120 мин,3.1483
+saits_best,mean_rank,≤120 мин,5.4306
+crossformer_best,mean_rank,≤120 мин,5.1005
+timesnet_best,mean_rank,≤120 мин,4.2919
+imputeformer_best,mean_rank,≤120 мин,6.7895
+,friedman_chi2,≤120 мин,1040
+,friedman_p,≤120 мин,1.87e-221
+,nemenyi_CD,≤120 мин,0.6232
+,N_cells,≤120 мин,209
+pchip,mean_rank,120–1000 мин,3.8406
+linear,mean_rank,120–1000 мин,3.8116
+unet_best,mean_rank,120–1000 мин,3.9952
+saits_best,mean_rank,120–1000 мин,5.8164
+crossformer_best,mean_rank,120–1000 мин,2.7150
+timesnet_best,mean_rank,120–1000 мин,2.1449
+imputeformer_best,mean_rank,120–1000 мин,5.6763
+,friedman_chi2,120–1000 мин,499.6
+,friedman_p,120–1000 мин,1.03e-104
+,nemenyi_CD,120–1000 мин,0.6262
+,N_cells,120–1000 мин,207
+pchip,mean_rank,>1000 мин,6.1176
+linear,mean_rank,>1000 мин,6.2157
+unet_best,mean_rank,>1000 мин,4.4804
+saits_best,mean_rank,>1000 мин,4.6716
+crossformer_best,mean_rank,>1000 мин,2.0049
+timesnet_best,mean_rank,>1000 мин,1.0441
+imputeformer_best,mean_rank,>1000 мин,3.4657
+,friedman_chi2,>1000 мин,1009
+,friedman_p,>1000 мин,1.08e-214
+,nemenyi_CD,>1000 мин,0.6308
+,N_cells,>1000 мин,204
