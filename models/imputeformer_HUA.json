@@ -1,0 +1,18 @@
+{
+ "arch": "imputeformer",
+ "params": 536261,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.003,
+ "best_val": 16.834754423958863,
+ "scale": 136.39453125,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "HUA",
+ "gap_pool_code": "ARS",
+ "cfg": "Z:\\University\\Institute_of_Geophysics_2.0\\models\\imputeformer_best.json",
+ "seconds": 4860
+}
