@@ -266,7 +266,11 @@ scripts/  bench_prep.py     XML -> data/<код>_<год>.npz (выбор ист
           bench_metrics.py  метрики, Score, блочные ДИ, парные сравнения
           bench_regimes.py  Score по режимам, Фридман/Немени, CD-диаграммы
           bench_examples.py рисунки «типичное окно» (--train-code; render_grid для отчёта)
-          bench_report.py   отчёт .docx из файлов проекта
+          bench_plot.py     сводные рисунки: все методы на одном графике по метрикам
+          bench_conformal.py доверительный интервал для заполненного пропуска
+                            (нормированное конформное предсказание; калибровка на val,
+                            проверка покрытия по группам трудности) — не в отчёте
+          bench_report.py   отчёт .docx из файлов проекта (не в git)
 data/     metrics_*.csv, regimes_*.csv (в git); ряды и дампы (не в git)
 models/   *.json конфигурации и grid_selection.csv (в git); *.pt (не в git)
 figures/  рисунки; gap_examples/ — типичные окна: fig_examples_<станция>_<test|test_hard>[_train<станция>].png,
