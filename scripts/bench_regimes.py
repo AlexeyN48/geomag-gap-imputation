@@ -256,7 +256,12 @@ def main_joined(a):
     print(chr(10) + f"сохранено: {out}")
 
     os.makedirs(FIGS, exist_ok=True)
-    fig, axes = plt.subplots(len(results), 1, figsize=(9, 3.9 * len(results)))
+    ncol = 2 if len(results) > 2 else 1          # в две колонки: так рисунок
+    nrow = -(-len(results) // ncol)             # влезает на книжную страницу
+    fig, axes = plt.subplots(nrow, ncol, figsize=(6.8 * ncol, 4.3 * nrow))
+    axes = np.atleast_1d(axes).ravel()
+    for ax in axes[len(results):]:
+        ax.axis("off")
     for ax, (g, mr, stat, p, cd, N) in zip(axes, results):
         cd_panel(ax, names, mr, cd, g, N)
     yrs = ", ".join(str(C.SPLIT[s][0]) for s in a.join)
@@ -343,7 +348,12 @@ def main():
     print(f"\nсохранено: {out}")
 
     # ---- CD-диаграммы
-    fig, axes = plt.subplots(len(results), 1, figsize=(9, 3.9 * len(results)))
+    ncol = 2 if len(results) > 2 else 1          # в две колонки: так рисунок
+    nrow = -(-len(results) // ncol)             # влезает на книжную страницу
+    fig, axes = plt.subplots(nrow, ncol, figsize=(6.8 * ncol, 4.3 * nrow))
+    axes = np.atleast_1d(axes).ravel()
+    for ax in axes[len(results):]:
+        ax.axis("off")
     for ax, (g, mr, stat, p, cd, N) in zip(axes, results):
         cd_panel(ax, names, mr, cd, g, N)
     fig.suptitle(f"CD-диаграммы по MAE, {setname}" + chr(10) + "ранг 1 = лучший; жирная черта — методы, неразличимые по Немени (α = 0.05); * = конфигурация из грида", fontsize=9)
