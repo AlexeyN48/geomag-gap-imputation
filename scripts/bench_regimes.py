@@ -25,15 +25,34 @@ r"""Сравнение методов по режимам длины дыры: S
              средние ранги отличаются меньше CD, статистически неразличимы;
   CD-диаграмма — методы на оси среднего ранга (1 = лучший), жирная черта
              соединяет неразличимые.
-Ячейки одного режима не независимы полностью (одни недели у всех длин), так
-что p и CD скорее оптимистичны — это инструмент упорядочивания и обзора;
-доказательство конкретной пары — парный бутстрэп в bench_metrics.
+Ячейки одного режима НЕ независимы: одна неделя входит в 4 ячейки (по одной
+на длину), и ошибки в них связаны — на наших данных корреляция около 0.94
+(буря портит все четыре сразу). Формула CD считает 208 ячеек за 208
+независимых наблюдений, поэтому её p и CD оптимистичны. Поэтому считаются
+ДВЕ версии:
+  «недели × длины» — как выше, все ячейки; чувствительна, но оптимистична,
+                     годится для обзора и сравнения годов между собой;
+  «независимая»    — каждая неделя отдаётся РОВНО ОДНОЙ длине режима
+                     (--join): недели сортируются по возмущённости поля и
+                     раздаются длинам по кругу, так что бури делятся между
+                     длинами поровну, а строки матрицы становятся
+                     независимыми. Два тестовых года при этом складываются
+                     в один набор: недели 2019 и 2024 разделены пятью
+                     годами и независимы, что возвращает N и вместе с ним
+                     чувствительность (N≈100 вместо 52 при честной
+                     независимости). Именно эта версия — основная для
+                     выводов.
+Складывать так можно ГОДЫ, но не станции: окна станций выровнены по времени,
+и неделя 7 на ARS — та же буря, что неделя 7 на HUA.
+Доказательство конкретной пары — парный бутстрэп в bench_metrics.
 
 Запуск:  cd scripts
          python -u bench_regimes.py --split val
          python -u bench_regimes.py --split test --code KAK --methods unet_best saits_best pchip
+         python -u bench_regimes.py --join test test_hard --code ARS   # независимая версия
 Выход:   data/regimes_<код>_<сплит>.csv  (MAE и Score по длинам и режимам, ранги)
          figures/fig_cd_<код>_<сплит>.png  (CD-диаграммы: все длины + 3 режима)
+         при --join: data/regimes_<код>_joined.csv и figures/fig_cd_<код>_joined.png
 """
 import os
 import csv
@@ -85,7 +104,8 @@ def load_all(methods, setname):
                 ref[L] = t
             elif not np.allclose(ref[L], t, equal_nan=True):
                 raise SystemExit(f"{m}: окна L={L} не совпадают с {methods[0]} — сравнение невозможно")
-            per[L] = (np.nanmean(np.abs(p - t), axis=1), d[f"L{L}_block"].astype(np.int64))
+            per[L] = (np.nanmean(np.abs(p - t), axis=1), d[f"L{L}_block"].astype(np.int64),
+                      d[f"L{L}_act"].astype(np.float64))
         out[m] = per
     return out
 
@@ -98,6 +118,35 @@ def cell_table(data, methods, lengths):
         for b in np.unique(blocks):
             sel = blocks == b
             rows.append([float(np.nanmean(data[m][L][0][sel])) for m in methods])
+    return np.array(rows)
+
+
+def week_activity(data, methods, lengths):
+    """{неделя: средняя возмущённость} — по полю act из дампа (мера по самим
+    данным, внешние индексы не используются)."""
+    acts = {}
+    for L in lengths:
+        a, b = data[methods[0]][L][2], data[methods[0]][L][1]
+        for x, w in zip(a, b):
+            acts.setdefault(int(w), []).append(float(x))
+    return {w: float(np.mean(v)) for w, v in acts.items()}
+
+
+def independent_table(data, methods, lengths, shift=0):
+    """Матрица независимых ячеек: каждая неделя даётся РОВНО ОДНОЙ длине.
+    Недели сортируются по возмущённости и раздаются длинам по кругу, поэтому
+    бури распределяются между длинами поровну, а строки не делят общих недель.
+    shift — поворот раздачи (для проверки устойчивости)."""
+    per_L = {L: {int(b): data[methods[0]][L][1] == b for b in np.unique(data[methods[0]][L][1])}
+             for L in lengths}
+    weeks = sorted(set.intersection(*[set(per_L[L]) for L in lengths]))
+    act = week_activity(data, methods, lengths)
+    order = sorted(weeks, key=lambda w: act.get(w, 0.0))
+    rows = []
+    for i, w in enumerate(order):
+        L = lengths[(i + shift) % len(lengths)]
+        sel = per_L[L][w]
+        rows.append([float(np.nanmean(data[m][L][0][sel])) for m in methods])
     return np.array(rows)
 
 
@@ -149,13 +198,89 @@ def cd_panel(ax, names, ranks, cd, title, N):
     ax.set_title(f"{title}   (N = {N} ячеек «неделя × длина»)", fontsize=9, loc="left")
 
 
+def main_joined(a):
+    """Независимая версия: каждой неделе — одна длина, годы сложены в один набор."""
+    methods = list(a.methods)
+    if a.base not in methods:
+        methods.append(a.base)
+    names = [pretty(m) for m in methods]
+    setname = f"{a.code}_joined"
+    print(f"независимая версия: {a.code}, наборы {', '.join(a.join)} "
+          f"(годы {', '.join(str(C.SPLIT[s][0]) for s in a.join)})")
+    print("каждая неделя отдана одной длине режима (раздача по возмущённости), "
+          "годы сложены — недели разных лет независимы" + chr(10))
+
+    per_split = {}
+    for sp in a.join:
+        per_split[sp] = load_all(methods, f"{a.code}_{sp}")
+    lengths = sorted(per_split[a.join[0]][methods[0]])
+    groups = [("все длины", lengths)] + [(g, [L for L in Ls if L in lengths]) for g, Ls in REGIMES]
+
+    results, stab = [], {}
+    for g, Ls in groups:
+        M = np.vstack([independent_table(d, methods, Ls) for d in per_split.values()])
+        mr, stat, p, cd, N = friedman_nemenyi(M)
+        results.append((g, mr, stat, p, cd, N))
+        best = mr.min()
+        top = {names[i] for i in range(len(methods)) if mr[i] - best < cd}
+        # устойчивость к повороту раздачи длин
+        sets = []
+        for sh in range(len(Ls)):
+            M2 = np.vstack([independent_table(d, methods, Ls, sh) for d in per_split.values()])
+            mr2, _, _, cd2, _ = friedman_nemenyi(M2)
+            b2 = mr2.min()
+            sets.append({names[i] for i in range(len(methods)) if mr2[i] - b2 < cd2})
+        always, ever = set.intersection(*sets), set.union(*sets)
+        stab[g] = (always, ever - always)
+        print(f"== {g}: Фридман χ²={stat:.1f}, p={p:.2g}; Немени CD={cd:.2f} "
+              f"(k={len(methods)}, N={N} независимых ячеек)")
+        for i in np.argsort(mr):
+            print(f"   {mr[i]:5.2f}  {names[i]}" + ("  <- верхняя группа" if names[i] in top else ""))
+        print(f"   при 4 вариантах раздачи в группе всегда: {', '.join(sorted(always))}"
+              + (f";  иногда: {', '.join(sorted(ever - always))}" if ever - always else ""))
+
+    out = os.path.join(DATA, f"regimes_{setname}.csv")
+    with open(out, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["method", "kind", "group", "value"])
+        for (g, mr, stat, p, cd, N) in results:
+            for i, m in enumerate(methods):
+                w.writerow([m, "mean_rank", g, f"{mr[i]:.4f}"])
+            w.writerow(["", "friedman_chi2", g, f"{stat:.4g}"])
+            w.writerow(["", "friedman_p", g, f"{p:.3g}"])
+            w.writerow(["", "nemenyi_CD", g, f"{cd:.4f}"])
+            w.writerow(["", "N_cells", g, N])
+            w.writerow(["", "top_always", g, ";".join(sorted(stab[g][0]))])
+            w.writerow(["", "top_sometimes", g, ";".join(sorted(stab[g][1]))])
+            w.writerow(["", "joined_splits", g, ";".join(a.join)])
+    print(chr(10) + f"сохранено: {out}")
+
+    os.makedirs(FIGS, exist_ok=True)
+    fig, axes = plt.subplots(len(results), 1, figsize=(9, 3.9 * len(results)))
+    for ax, (g, mr, stat, p, cd, N) in zip(axes, results):
+        cd_panel(ax, names, mr, cd, g, N)
+    yrs = ", ".join(str(C.SPLIT[s][0]) for s in a.join)
+    fig.suptitle(f"CD-диаграммы по MAE, {a.code}, {yrs} — независимые ячейки" + chr(10)
+                 + "каждая неделя отдана одной длине; ранг 1 = лучший; жирная черта — "
+                   "неразличимые по Немени (α = 0.05)", fontsize=9)
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fp = os.path.join(FIGS, f"fig_cd_{setname}.png")
+    fig.savefig(fp, dpi=130)
+    print(f"сохранён {fp}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--split", default="val", choices=sorted(C.SPLIT))
     ap.add_argument("--code", default=C.CODE)
     ap.add_argument("--methods", nargs="+", default=DEFAULT_METHODS)
     ap.add_argument("--base", default="pchip", help="базлайн для Score")
+    ap.add_argument("--join", nargs="+", default=None, metavar="СПЛИТ",
+                    help="независимая версия: сложить эти наборы (напр. --join test test_hard), "
+                         "каждой неделе дать одну длину; --split при этом игнорируется")
     a = ap.parse_args()
+    if a.join:
+        return main_joined(a)
     setname = f"{a.code}_{a.split}"
     methods = list(a.methods)
     if a.base not in methods:
