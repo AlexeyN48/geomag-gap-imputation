@@ -25,6 +25,63 @@ GROSS_THR = 5000.0    # нТл: |F - медиана года| выше => физ
                       # пропусков, до которых скользящая медиана не дотягивается —
                       # пример: CMO 2023, день 300, F = 249 нТл между двумя NaN)
 
+# Иглы — одиночные сбойные точки на спокойном фоне (скан всех станций, сентябрь
+# 2026): точка отклоняется от медианы соседних ±10 мин больше NEEDLE_THR, соседи
+# с фоном совпадают (< 3 нТл), фон спокойный (σ приращений < 1.5 нТл). Порог
+# засечек 100 нТл их пропускал: у ARS 2013 147 игл по 6–72 нТл. Фильтр
+# применяется ТОЛЬКО к обучающим годам (bench_common.SPLIT["train"]): тестовые
+# и валидационный годы остаются как есть — в них по 0–1 игле, и их изменение
+# сдвинуло бы план тестовых окон и обесценило все посчитанные дампы.
+NEEDLE_THR = 5.0
+# Участки, признанные сбоем вручную: хаотичные скачки ±150 нТл, которых нет ни
+# на одной другой станции (WNG в эти часы спокоен, |dF| < 0.5 нТл/мин).
+BAD_INTERVALS = {
+    ("ARS", 2013): [("2013-04-02 05:45", "2013-04-02 10:30")],
+}
+
+
+def train_years():
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import bench_common as C
+    return set(C.SPLIT["train"])
+
+
+def deneedle(F):
+    """Одиночные иглы -> NaN. Возвращает (F, число игл)."""
+    x = F.astype(np.float64)
+    n = x.size
+    d = np.abs(np.diff(x))
+    bad = []
+    for t in np.flatnonzero(d > NEEDLE_THR) + 1:
+        if t < 11 or t > n - 12:
+            continue
+        w = np.r_[x[t - 10:t], x[t + 1:t + 11]]
+        if not (np.isfinite(w).all() and np.isfinite(x[t])):
+            continue
+        base = np.median(w)
+        if (np.std(np.diff(w)) < 1.5 and abs(x[t] - base) > NEEDLE_THR
+                and abs(x[t - 1] - base) < 3 and abs(x[t + 1] - base) < 3):
+            bad.append(t)
+    if bad:
+        F = F.copy()
+        F[bad] = np.nan
+    return F, len(bad)
+
+
+def cut_bad(F, code, year):
+    """Ручные сбойные участки -> NaN. Возвращает (F, число минут)."""
+    import datetime as dt
+    t0 = dt.datetime(year, 1, 1)
+    k = 0
+    for a, b in BAD_INTERVALS.get((code, year), []):
+        i = int((dt.datetime.fromisoformat(a) - t0).total_seconds() // 60)
+        j = int((dt.datetime.fromisoformat(b) - t0).total_seconds() // 60)
+        F = F.copy()
+        k += int(np.isfinite(F[i:j]).sum())
+        F[i:j] = np.nan
+    return F, k
+
 
 def minutes_in_year(y):
     leap = (y % 4 == 0 and (y % 100 != 0 or y % 400 == 0))
@@ -145,6 +202,12 @@ def process(path, args):
         if gross.any():
             F = F.copy(); F[gross] = np.nan
             spikes += int(gross.sum())
+    needles = cut = 0
+    if F is not None and year in train_years():
+        F, needles = deneedle(F)
+    if F is not None:
+        F, cut = cut_bad(F, code, year)
+    spikes += needles + cut
 
     n = minutes_in_year(year)
     # исходная длина запоминается ДО приведения к сетке: файл, залезающий в
