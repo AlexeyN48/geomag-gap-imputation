@@ -20,13 +20,17 @@ import bench_models as M
 MODELS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models"))
 
 
-def make_batch(years, sampler, scale, rng, bs, long_only=False):
+def make_batch(years, sampler, scale, rng, bs, long_only=False, comps=None):
     """Создаёт батч (X, mask, Y, A) для обучения. X — входные признаки, mask — маска реальных пропусков,
-    Y — целевые значения, A — маска искусственных."""
+    Y — целевые значения, A — маска искусственных.
+    comps — {год: (n, 3)}: план окон и дыр считается по F, как и в основном
+    эксперименте, а в модель идут компоненты того же окна. Так сравнение с
+    результатами по модулю остаётся парным: те же недели, те же минуты."""
     Xs, Ms, Ys, As = [], [], [], []
-    arrs = [F for F in years.values() if F.size > C.W]
+    arrs = [(y, F) for y, F in years.items() if F.size > C.W
+            and (comps is None or y in comps)]
     while len(Xs) < bs:
-        F = arrs[rng.integers(len(arrs))]
+        yy, F = arrs[rng.integers(len(arrs))]
         st = int(rng.integers(0, F.size - C.W))
         if long_only:
             # одна ДЛИННАЯ дыра на окно вместо смеси multi-gap
@@ -36,33 +40,47 @@ def make_batch(years, sampler, scale, rng, bs, long_only=False):
             smp = C.multi_gap_sample(F, st, rng, sampler)
         if smp is None or smp["mask_real"].mean() > C.MAX_REAL:
             continue
-        X, msk, center = M.featurize(smp["input"], st, scale)
+        if comps is None:
+            inp, tgt, art = smp["input"], smp["target"], smp["mask_art"]
+        else:
+            tgt = comps[yy][st:st + C.W]
+            inp = tgt.copy(); inp[smp["mask_art"]] = np.nan
+            art = np.repeat(smp["mask_art"][:, None], tgt.shape[1], axis=1)
+        X, msk, center = M.featurize(inp, st, scale)
         # NaN вне искусственной дыры (реальные пропуски) обязаны быть занулены:
         # маскирование умножением их не убирает, 0 * NaN = NaN, и лосс целиком
         # становится нефинитным. Внутри искусственной дыры истина есть всегда.
-        y = np.nan_to_num(((smp["target"] - center) / scale), nan=0.0).astype(np.float32)
+        y = np.nan_to_num(((tgt - center) / scale), nan=0.0).astype(np.float32)
         Xs.append(X); Ms.append(msk)
-        Ys.append(y.reshape(M.WB, M.P))
-        As.append(smp["mask_art"].reshape(M.WB, M.P))
+        Ys.append(y.reshape(M.WB, M.POUT))
+        As.append(art.reshape(M.WB, M.POUT))
     return (torch.from_numpy(np.stack(Xs)), torch.from_numpy(np.stack(Ms)),
             torch.from_numpy(np.stack(Ys)),
             torch.from_numpy(np.stack(As).astype(np.float32)))
 
-def build_valset(years, scale, n=96, seed=C.SEED + 1, gmin=None):
+def build_valset(years, scale, n=96, seed=C.SEED + 1, gmin=None, comps=None):
     """Фиксированный валидационный набор: одиночные дыры, одни и те же окна для
-    всех моделей и всех прогонов."""
+    всех моделей и всех прогонов. При обучении на компонентах в модель идут
+    X, Y, Z, но ошибка чекпойнта считается по собранному из них модулю — тогда
+    момент остановки выбирается по тому же числу, что и в опыте по модулю."""
     rng = np.random.default_rng(seed)
     sampler = C.GapSampler(years, gmin=gmin or C.GAP_MIN)
     out = []
-    arrs = [F for F in years.values() if F.size > C.W]
+    arrs = [(y, F) for y, F in years.items() if F.size > C.W
+            and (comps is None or y in comps)]
     while len(out) < n:
-        F = arrs[rng.integers(len(arrs))]
+        yy, F = arrs[rng.integers(len(arrs))]
         st = int(rng.integers(0, F.size - C.W))
         L = min(max(gmin or C.GAP_MIN, sampler.sample(rng)), C.W - 2 * C.CTX - 1)
         smp = C.make_sample(F, st, L, rng)
         if smp is None or smp["mask_real"].mean() > C.MAX_REAL:
             continue
-        X, msk, center = M.featurize(smp["input"], st, scale)
+        if comps is None:
+            inp = smp["input"]
+        else:
+            inp = comps[yy][st:st + C.W].copy()
+            inp[smp["mask_art"]] = np.nan
+        X, msk, center = M.featurize(inp, st, scale)
         out.append((X, msk, smp["target"], smp["mask_art"], center))
     return out
 
@@ -76,9 +94,13 @@ def validate(net, vals, scale, device, bs=16):
         chunk = vals[i:i + bs]
         xb = torch.from_numpy(np.stack([c[0] for c in chunk])).to(device)
         mb = torch.from_numpy(np.stack([c[1] for c in chunk])).to(device)
-        out = net(xb, mb).cpu().numpy().reshape(len(chunk), -1)[:, :C.W]
+        out = net(xb, mb).cpu().numpy().reshape(len(chunk), -1)[:, :C.W * M.NCH]
         for j, (_, _, tgt, art, center) in enumerate(chunk):
-            pred = out[j] * scale + center
+            if M.NCH == 1:
+                pred = out[j] * scale + center
+            else:   # компоненты -> модуль: ошибка чекпойнта всегда в нТл по F
+                pred = np.sqrt((((out[j].reshape(C.W, M.NCH)
+                                  * np.asarray(scale).reshape(1, -1)) + center) ** 2).sum(1))
             tot += np.abs(pred[art] - tgt[art]).sum()
             cnt += art.sum()
     net.train()
@@ -108,6 +130,10 @@ def main():
                     help="станция, чьи реальные длины пропусков идут в пул GapSampler; "
                          "по умолчанию ARS для всех — у KAK/HUA/HER своих пропусков нет, "
                          "а распределение длин при обучении должно быть одинаковым")
+    ap.add_argument("--comp", action="store_true",
+                    help="обучать на компонентах X, Y, Z вместо модуля F; окна и дыры "
+                         "те же (план строится по F), ошибка чекпойнта — по собранному "
+                         "из компонент модулю; годы с непригодным вектором отбрасываются")
     ap.add_argument("--cfg", default=None,
                     help="json чекпойнта (models/<arch>_best.json): взять оттуда lr, kw, "
                          "steps, batch, accum, patch — всё, что не задано явно в командной строке")
@@ -138,7 +164,18 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
     train = C.load_split("train", code=args.code)
     val = C.load_split("val", code=args.code)
-    scale = C.compute_scale(train)
+    if args.comp:
+        if args.arch == "csdi":
+            raise SystemExit("csdi на компонентах не поддержан: его вход устроен иначе")
+        ctrain = C.load_split_comp("train", code=args.code)
+        cval = C.load_split_comp("val", code=args.code)
+        train = {y: F for y, F in train.items() if y in ctrain}
+        val = {y: F for y, F in val.items() if y in cval}
+        scale = C.scale_comp(ctrain)
+        M.set_channels(3)
+    else:
+        ctrain = cval = None
+        scale = C.compute_scale(train)
     GMIN = 720 if args.long_only else C.GAP_MIN
     pool_years = train if args.gap_pool_code == args.code else C.load_split("train", code=args.gap_pool_code)
     sampler = C.GapSampler(pool_years, gmin=GMIN)
@@ -156,15 +193,18 @@ def main():
         return 0.5 * (1 + np.cos(np.pi * min(1.0, prog)))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lam)
 
-    vals = build_valset(val, scale,
+    vals = build_valset(val, scale, comps=cval,
                         n=getattr(M.ARCH[args.arch], 'VAL_N', 96), gmin=GMIN)
     os.makedirs(MODELS, exist_ok=True)
-    out = args.out or os.path.join(MODELS, f"{args.arch}.pt" if args.code == C.CODE
-                                            else f"{args.arch}_{args.code}.pt")
+    suf = "_comp" if args.comp else ""
+    out = args.out or os.path.join(MODELS, f"{args.arch}{suf}.pt" if args.code == C.CODE
+                                            else f"{args.arch}_{args.code}{suf}.pt")
 
     print(f"устройство={device}  модель={args.arch}  параметров={npar/1e6:.3f} млн  "
           f"станция={args.code}  пул длин дыр={args.gap_pool_code} ({sampler.pool.size} реальных длин)")
-    print(f"масштаб={scale:.1f} нТл  шагов={args.steps}  батч={args.batch}x{args.accum}"
+    print(f"вход: {'компоненты X, Y, Z' if args.comp else 'модуль F'}; "
+          f"годы обучения: {', '.join(map(str, sorted(train)))}")
+    print(f"масштаб={np.array2string(np.atleast_1d(scale), precision=1)} нТл  шагов={args.steps}  батч={args.batch}x{args.accum}"
           f"  окон валидации={len(vals)}")
     print(f"{'шаг':>7}{'train':>10}{'val, нТл':>11}{'lr':>10}{'сек':>8}")
     print("-" * 46)
@@ -174,7 +214,7 @@ def main():
         opt.zero_grad(set_to_none=True)
         for _ in range(args.accum):
             X, msk, Y, A = make_batch(train, sampler, scale, rng, args.batch,
-                                      long_only=args.long_only)
+                                      long_only=args.long_only, comps=ctrain)
             X, msk, Y, A = X.to(device), msk.to(device), Y.to(device), A.to(device)
             if hasattr(net, "custom_loss"):
                 # у диффузии своя цель (предсказание шума); подменять её общим
@@ -207,7 +247,9 @@ def main():
     with open(out.replace(".pt", ".json"), "w", encoding="utf-8") as f:
         json.dump(dict(arch=args.arch, params=npar, steps=args.steps,
                        batch=args.batch, accum=args.accum, lr=args.lr,
-                       best_val=best, scale=scale, kw=kw, patch=args.patch, window=int(C.W), long_only=args.long_only,
+                       best_val=best, scale=np.atleast_1d(scale).astype(float).tolist(),
+                       channels=int(M.NCH), comp=bool(args.comp),
+                       kw=kw, patch=args.patch, window=int(C.W), long_only=args.long_only,
                        code=args.code, gap_pool_code=args.gap_pool_code, cfg=args.cfg,
                        seconds=round(time.time() - t0)), f, ensure_ascii=False, indent=1)
 

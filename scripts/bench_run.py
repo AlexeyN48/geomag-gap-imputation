@@ -111,7 +111,7 @@ METHODS = {"mean": fill_mean, "locf": fill_locf, "linear": fill_linear,
 
 
 # ------------------------------------------------------------ прогон
-def resolve(method, ckpt=None):
+def resolve(method, ckpt=None, code=None, split=None):
     """Классический метод по имени либо обученная модель по имени чекпойнта.
     Обе ветки возвращают функцию (окно, начало) -> заполненное окно, поэтому
     дальше прогон одинаков и дампы получаются одного формата.
@@ -119,7 +119,7 @@ def resolve(method, ckpt=None):
     method тогда только имя для дампа."""
     if method in METHODS:
         fn = METHODS[method]
-        return (lambda inp, start: fn(inp)), None
+        return (lambda inp, start, year=None: fn(inp)), None
     import torch
     import bench_models as BM
     path = ckpt or os.path.join(os.path.dirname(__file__), "..", "models", f"{method}.pt")
@@ -127,7 +127,28 @@ def resolve(method, ckpt=None):
         raise SystemExit(f"нет ни метода, ни чекпойнта «{method}»")
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     net, ck = BM.load(path, dev)
-    return (lambda inp, start: BM.fill(net, inp, start, ck["scale"], dev)), ck
+    if int(ck.get("NCH", 1)) == 1:
+        return (lambda inp, start, year=None: BM.fill(net, inp, start, ck["scale"], dev)), ck
+
+    # модель обучена на компонентах: окно и дыра те же (их план построен по F),
+    # но на вход идут X, Y, Z, а наружу — модуль восстановленного вектора.
+    # Годится только там, где F и есть модуль вектора, то есть базисы
+    # вариометра приложены верно; остальные годы отсеяны ещё в comp_ok.
+    comp = {y: C.load_year_comp(y, code=code) for y in C.SPLIT[split]
+            if C.comp_ok(y, code=code)}
+    bad = [y for y in C.SPLIT[split] if y not in comp]
+    if bad:
+        raise SystemExit(f"в наборе {split} компоненты непригодны для годов "
+                         f"{', '.join(map(str, bad))}: базисы вариометра не приложены "
+                         "или устарели, модуль вектора расходится со скаляром")
+
+    def fill_comp(inp, start, year=None):
+        w = comp[year][start:start + C.W].copy()
+        w[~np.isfinite(inp)] = np.nan            # те же дыры, что и в F
+        out = BM.fill(net, w, start, ck["scale"], dev)
+        return np.sqrt((out ** 2).sum(axis=1))
+
+    return fill_comp, ck
 
 
 def _build_length_fields(smps, fn, acts, L):
@@ -144,7 +165,7 @@ def _build_length_fields(smps, fn, acts, L):
     blk = np.zeros(n, np.int32)
     errs = []
     for i, s in enumerate(smps):
-        pred = fn(s["input"], s["start"])
+        pred = fn(s["input"], s["start"], s.get("year"))
         a = int(s["pos"][0])
         lo, hi = a - C.MARGIN, a + L + C.MARGIN
         clo, chi = max(0, lo), min(C.W, hi)
@@ -212,7 +233,8 @@ def window_plan(lengths, gather_fn):
 
 
 def run(args):
-    fn, ck = resolve(args.method, getattr(args, "ckpt", None))
+    fn, ck = resolve(args.method, getattr(args, "ckpt", None),
+                     code=args.code, split=args.split)
     if ck is not None:
         print(f"чекпойнт: {args.method}.pt  шаг={ck['step']}  "
               f"val при обучении={ck['val']:.3f} нТл")
