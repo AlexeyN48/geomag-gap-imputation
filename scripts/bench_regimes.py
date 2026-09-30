@@ -66,7 +66,7 @@ from scipy.stats import friedmanchisquare, rankdata, chi2
 import bench_common as C
 from bench_metrics import load, gap
 
-DATA = C.DATA
+DATA = C.OUT
 FIGS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "figures"))
 
 REGIMES = [("≤120 мин", [5, 15, 60, 120]),

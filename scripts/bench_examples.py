@@ -43,7 +43,7 @@ REP_LEN = [(("≤120 мин"), 60), (("120–1000 мин"), 720), ((">1000 ми�
 
 
 def load(method, code, split):
-    return np.load(os.path.join(C.DATA, f"dump_{method}_{code}_{split}.npz"), allow_pickle=False)
+    return np.load(os.path.join(C.OUT, f"dump_{method}_{code}_{split}.npz"), allow_pickle=False)
 
 
 def pick_windows(dumps, L):

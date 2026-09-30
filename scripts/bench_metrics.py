@@ -72,7 +72,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-DATA = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
+import bench_common as _C
+DATA = _C.OUT          # дампы и метрики: своя папка у неосновного сплита
 FIGS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "figures"))
 
 CI_M = 512      # размер ресэмпла (окон) для ЗАПАСНОГО бутстрэпа по окнам —
@@ -113,7 +114,7 @@ def blocks_for(d, L, setname=None):
         return d[key].astype(np.int64)
     import bench_common as C
     setname = setname or str(d["setname"])
-    code, split = setname.split("_", 1)
+    code, split = C.parse_setname(setname)
     cache = blocks_for._cache.setdefault(setname, {})
     if "index" not in cache:
         from numpy.lib.stride_tricks import sliding_window_view

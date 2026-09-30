@@ -528,6 +528,32 @@ def load(path, device="cpu"):
 
 
 @torch.no_grad()
+def fill_many(net, inps, starts, scale, device="cpu", bs=16):
+    """То же, что fill(), но пачкой. Поокно GPU простаивает: на окно приходится
+    один запуск сети, и накладные расходы больше самого счёта. Батч по 16 даёт
+    кратное ускорение прогона при тех же числах на выходе."""
+    out = []
+    for i in range(0, len(inps), bs):
+        ii, ss = inps[i:i + bs], starts[i:i + bs]
+        feats = [featurize(a, st, scale) for a, st in zip(ii, ss)]
+        xb = torch.from_numpy(np.stack([f[0] for f in feats])).to(device)
+        mb = torch.from_numpy(np.stack([f[1] for f in feats])).to(device)
+        o = net(xb, mb)
+        if isinstance(o, (tuple, list)):
+            o = o[0]
+        o = o.cpu().numpy().reshape(len(feats), -1)
+        for j, a in enumerate(ii):
+            v = o[j][:C.W * NCH]
+            center = feats[j][2]
+            if a.ndim == 2:
+                pred = v.reshape(C.W, NCH) * np.asarray(scale, np.float64).reshape(1, -1) + center
+            else:
+                pred = v.reshape(C.W) * scale + center
+            out.append(np.where(np.isfinite(a), a, pred).astype(np.float64))
+    return out
+
+
+@torch.no_grad()
 def fill(net, inp, start, scale, device="cpu"):
     """Восстановление одного окна: только пропущенные точки заменяются, видимые
     остаются как есть — иначе метод «портил» бы наблюдения."""

@@ -119,16 +119,17 @@ def resolve(method, ckpt=None, code=None, split=None):
     method тогда только имя для дампа."""
     if method in METHODS:
         fn = METHODS[method]
-        return (lambda inp, start, year=None: fn(inp)), None
+        return (lambda inps, starts, years: [fn(a) for a in inps]), None
     import torch
     import bench_models as BM
-    path = ckpt or os.path.join(os.path.dirname(__file__), "..", "models", f"{method}.pt")
+    path = ckpt or os.path.join(C.MODELS, f"{method}.pt")
     if not os.path.exists(path):
         raise SystemExit(f"нет ни метода, ни чекпойнта «{method}»")
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     net, ck = BM.load(path, dev)
     if int(ck.get("NCH", 1)) == 1:
-        return (lambda inp, start, year=None: BM.fill(net, inp, start, ck["scale"], dev)), ck
+        return (lambda inps, starts, years:
+                BM.fill_many(net, inps, starts, ck["scale"], dev)), ck
 
     # модель обучена на компонентах: окно и дыра те же (их план построен по F),
     # но на вход идут X, Y, Z, а наружу — модуль восстановленного вектора.
@@ -142,11 +143,14 @@ def resolve(method, ckpt=None, code=None, split=None):
                          f"{', '.join(map(str, bad))}: базисы вариометра не приложены "
                          "или устарели, модуль вектора расходится со скаляром")
 
-    def fill_comp(inp, start, year=None):
-        w = comp[year][start:start + C.W].copy()
-        w[~np.isfinite(inp)] = np.nan            # те же дыры, что и в F
-        out = BM.fill(net, w, start, ck["scale"], dev)
-        return np.sqrt((out ** 2).sum(axis=1))
+    def fill_comp(inps, starts, years):
+        ws = []
+        for a, st, y in zip(inps, starts, years):
+            w = comp[y][st:st + C.W].copy()
+            w[~np.isfinite(a)] = np.nan          # те же дыры, что и в F
+            ws.append(w)
+        return [np.sqrt((o ** 2).sum(axis=1))
+                for o in BM.fill_many(net, ws, starts, ck["scale"], dev)]
 
     return fill_comp, ck
 
@@ -164,8 +168,10 @@ def _build_length_fields(smps, fn, acts, L):
     g0 = np.zeros(n, np.int32)
     blk = np.zeros(n, np.int32)
     errs = []
+    preds = fn([s["input"] for s in smps], [s["start"] for s in smps],
+               [s.get("year") for s in smps])
     for i, s in enumerate(smps):
-        pred = fn(s["input"], s["start"], s.get("year"))
+        pred = preds[i]
         a = int(s["pos"][0])
         lo, hi = a - C.MARGIN, a + L + C.MARGIN
         clo, chi = max(0, lo), min(C.W, hi)
@@ -193,13 +199,13 @@ def _save_dump(args, code, lengths, fields_by_L):
         out[f"L{L}_act"] = fields["act"]
         out[f"L{L}_gap0"] = fields["gap0"]
         out[f"L{L}_block"] = fields["block"]
-    setname = f"{code}_{args.split}"
+    setname = C.setname(code, args.split)
     out["method"] = np.array(args.method)
     out["setname"] = np.array(setname)
     out["lengths"] = np.array(lengths, np.int32)
     out["margin"] = np.array(C.MARGIN, np.int32)
     out["seed"] = np.array(C.SEED, np.int32)
-    out_dir = getattr(args, "out_dir", None) or C.DATA
+    out_dir = getattr(args, "out_dir", None) or C.OUT
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f"dump_{args.method}_{setname}.npz")
     np.savez_compressed(path, **out)
@@ -269,7 +275,7 @@ def run(args):
 
     years = C.load_split(args.split, code=args.code)
     acts = {y: C.activity(F) for y, F in years.items()}
-    setname = f"{args.code}_{args.split}"
+    setname = C.setname(args.code, args.split)
 
     print(f"метод={args.method}  набор={setname} ({', '.join(map(str, sorted(years)))})"
           f"  n={args.n}  margin={C.MARGIN}")

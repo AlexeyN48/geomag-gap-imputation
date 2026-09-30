@@ -79,6 +79,35 @@ if SPLIT_NAME not in SPLITS:
 SPLIT = SPLITS[SPLIT_NAME]
 
 
+# Производные артефакты (дампы, метрики, CSV режимов) неосновных сплитов
+# лежат отдельной папкой: исходные <код>_<год>.npz общие, а всё посчитанное
+# на другом сплите не должно смешиваться с основным экспериментом.
+OUT = DATA if SPLIT_NAME == "f" else os.path.join(DATA, SPLIT_NAME)
+os.makedirs(OUT, exist_ok=True)
+
+# Чекпойнты — по той же логике: модели неосновного сплита в своей папке,
+# чтобы их нельзя было спутать с моделями основного эксперимента
+_MODELS_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models"))
+MODELS = _MODELS_ROOT if SPLIT_NAME == "f" else os.path.join(_MODELS_ROOT, SPLIT_NAME)
+os.makedirs(MODELS, exist_ok=True)
+
+
+def setname(code, split):
+    """Имя набора для дампов и метрик. Семейство сплита входит в имя, когда
+    оно не основное: иначе дампы затирали бы друг друга — «val» в сплите f
+    это 2025, а в comp 2023, и файл назывался бы одинаково."""
+    return f"{code}_{split}" if SPLIT_NAME == "f" else f"{code}_{SPLIT_NAME}_{split}"
+
+
+def parse_setname(name):
+    """'ARS_comp_test_hard' -> ('ARS', 'test_hard'); 'ARS_test_hard' -> то же."""
+    parts = name.split("_")
+    rest = parts[1:]
+    if rest and rest[0] in SPLITS:
+        rest = rest[1:]
+    return parts[0], "_".join(rest)
+
+
 def load_year(year, code=CODE):
     p = os.path.join(DATA, f"{code}_{year}.npz")
     if not os.path.exists(p):
