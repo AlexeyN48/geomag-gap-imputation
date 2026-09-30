@@ -17,7 +17,7 @@ import torch
 import bench_common as C
 import bench_models as M
 
-MODELS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models"))
+MODELS = C.MODELS          # у неосновного сплита — своя подпапка
 
 
 def make_batch(years, sampler, scale, rng, bs, long_only=False, comps=None):
@@ -46,6 +46,11 @@ def make_batch(years, sampler, scale, rng, bs, long_only=False, comps=None):
             tgt = comps[yy][st:st + C.W]
             inp = tgt.copy(); inp[smp["mask_art"]] = np.nan
             art = np.repeat(smp["mask_art"][:, None], tgt.shape[1], axis=1)
+            # дыра ставится по маске F, и внутри неё F есть всегда — а вот
+            # компонента может отсутствовать (у CMO таких минут 227 на 4.9 млн).
+            # Без этой строки цель там занулилась бы, и лосс тянул бы модель
+            # к медиане окна вместо истины
+            art &= np.isfinite(tgt)
         X, msk, center = M.featurize(inp, st, scale)
         # NaN вне искусственной дыры (реальные пропуски) обязаны быть занулены:
         # маскирование умножением их не убирает, 0 * NaN = NaN, и лосс целиком
@@ -196,9 +201,16 @@ def main():
     vals = build_valset(val, scale, comps=cval,
                         n=getattr(M.ARCH[args.arch], 'VAL_N', 96), gmin=GMIN)
     os.makedirs(MODELS, exist_ok=True)
-    suf = "_comp" if args.comp else ""
-    out = args.out or os.path.join(MODELS, f"{args.arch}{suf}.pt" if args.code == C.CODE
-                                            else f"{args.arch}_{args.code}{suf}.pt")
+    # имя: <арх>[_<станция>][_<сплит>][_xyz].pt — сплит и вход попадают в имя,
+    # иначе прогон на другом сплите затёр бы модели основного эксперимента
+    name = args.arch
+    if args.code != C.CODE:
+        name += f"_{args.code}"
+    if C.SPLIT_NAME != "f":
+        name += f"_{C.SPLIT_NAME}"
+    if args.comp:
+        name += "_xyz"
+    out = args.out or os.path.join(MODELS, f"{name}.pt")
 
     print(f"устройство={device}  модель={args.arch}  параметров={npar/1e6:.3f} млн  "
           f"станция={args.code}  пул длин дыр={args.gap_pool_code} ({sampler.pool.size} реальных длин)")

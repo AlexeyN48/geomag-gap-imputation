@@ -1,0 +1,24 @@
+{
+ "arch": "imputeformer",
+ "params": 889551,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.003,
+ "best_val": 13.944161267402091,
+ "scale": [
+  22.832618713378906,
+  6.3750715255737305,
+  3.7065000534057617
+ ],
+ "channels": 3,
+ "comp": true,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "HUA",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/imputeformer_best.json",
+ "seconds": 11060
+}

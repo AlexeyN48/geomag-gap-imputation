@@ -1,0 +1,22 @@
+{
+ "arch": "unet",
+ "params": 4282437,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.003,
+ "best_val": 3.0621627968591936,
+ "scale": [
+  34.46484375
+ ],
+ "channels": 1,
+ "comp": false,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "HER",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/unet_best.json",
+ "seconds": 474
+}

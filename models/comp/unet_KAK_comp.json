@@ -1,0 +1,22 @@
+{
+ "arch": "unet",
+ "params": 4282437,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.003,
+ "best_val": 4.419593610000482,
+ "scale": [
+  38.0859375
+ ],
+ "channels": 1,
+ "comp": false,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "KAK",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/unet_best.json",
+ "seconds": 451
+}

@@ -1,0 +1,24 @@
+{
+ "arch": "imputeformer",
+ "params": 889551,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.003,
+ "best_val": 23.857761404582227,
+ "scale": [
+  20.682559967041016,
+  17.93924331665039,
+  15.422514915466309
+ ],
+ "channels": 3,
+ "comp": true,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "CMO",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/imputeformer_best.json",
+ "seconds": 9560
+}
