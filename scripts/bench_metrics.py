@@ -73,13 +73,18 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 import bench_common as _C
+C_SPLIT_NAME = _C.SPLIT_NAME
 DATA = _C.OUT          # дампы и метрики: своя папка у неосновного сплита
 FIGS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "figures"))
 
 CI_M = 512      # размер ресэмпла (окон) для ЗАПАСНОГО бутстрэпа по окнам —
                 # используется только если блоки недоступны (см. blocks_for)
-CI_REPS = 200   # число бутстрэп-повторов на каждую (длина, subset) — компромисс
-                # между устойчивостью границ ДИ и временем счёта по всем длинам
+CI_REPS = 2000  # число бутстрэп-повторов на каждую (длина, subset). Было 200 —
+                # при стольких повторах 2.5-й процентиль это пятое значение из
+                # двухсот, и границы гуляли на ±0.03-0.045 нТл от одной лишь
+                # смены зерна, а верхняя вдобавок систематически занижалась
+                # (хвосты не успевают выпасть -> интервалы уже настоящих).
+                # При 2000 границы устойчивы, а стоит это 0.02 с вместо 0.01.
 CI_SEED = 1234  # тот же SEED, что и в bench_common.py — воспроизводимость
 
 
@@ -153,6 +158,45 @@ blocks_for._cache = {}
 def load(path):
     p = path if os.path.isabs(path) else os.path.join(DATA, path)
     return np.load(p, allow_pickle=False)
+
+
+def join_dumps(paths):
+    """Склеить дампы одного метода по нескольким наборам в один.
+
+    Зачем: тестовых годов два, и в каждом около 52 недель. Для парных сравнений
+    и общего вывода их можно сложить — недели разных лет независимы, годы
+    разделены тремя годами. Получается 104 блока вместо 52, и доверительный
+    интервал сужается примерно в корень из двух.
+
+    Складывать МОЖНО годы, но НЕ станции: окна станций выровнены по времени,
+    и неделя 7 на ARS — та же буря, что неделя 7 на HUA.
+
+    Номера блоков уже содержат год (год*100 + неделя), поэтому недели разных
+    лет не сливаются автоматически — ничего пересчитывать не нужно.
+
+    Возвращает dict в том же формате, что np.load дампа."""
+    ds = [load(x) for x in paths]
+    for d in ds[1:]:
+        if list(d["lengths"]) != list(ds[0]["lengths"]):
+            raise SystemExit("склейка невозможна: разные наборы длин")
+        if str(d["method"]) != str(ds[0]["method"]):
+            raise SystemExit(f"склейка невозможна: разные методы "
+                             f"({ds[0]['method']} и {d['method']})")
+        if int(d["margin"]) != int(ds[0]["margin"]):
+            raise SystemExit("склейка невозможна: разные поля вокруг дыры")
+    out = {}
+    for L in [int(x) for x in ds[0]["lengths"]]:
+        for key in ("true", "pred", "act", "gap0", "block"):
+            k = f"L{L}_{key}"
+            if all(k in d for d in ds):
+                out[k] = np.concatenate([d[k] for d in ds], axis=0)
+    out["margin"] = ds[0]["margin"]
+    out["lengths"] = ds[0]["lengths"]
+    out["method"] = ds[0]["method"]
+    code = str(ds[0]["setname"]).split("_")[0]
+    out["setname"] = np.array(f"{code}_{C_SPLIT_NAME}_joined" if C_SPLIT_NAME != "f"
+                              else f"{code}_joined")
+    return out
 
 
 def gap(d, L, key):
@@ -289,6 +333,23 @@ def skill_ci(err, err_base, blocks=None, m=CI_M, reps=CI_REPS, seed=CI_SEED):
         boot[i] = 1.0 - sa.mae(mult) / sb.mae(mult)
     lo, hi = np.percentile(boot, [2.5, 97.5])
     return float(lo), float(hi)
+
+
+def find_base_joined(d, paths):
+    """PCHIP для склеенного набора: те же наборы, но метод pchip."""
+    import re
+    cand = [re.sub(r"dump_[^/\\]+?_([A-Z]{3}_)", r"dump_pchip_\1", x) for x in paths]
+    if not all(os.path.exists(x if os.path.isabs(x) else os.path.join(DATA, x))
+               for x in cand):
+        return None, None
+    b = join_dumps(cand)
+    out = {}
+    for L in [int(x) for x in d["lengths"]]:
+        t, tb = gap(d, L, "true"), gap(b, L, "true")
+        if t.shape != tb.shape or not np.allclose(t, tb, equal_nan=True):
+            return None, None
+        out[L] = np.abs(gap(b, L, "pred") - tb)
+    return "pchip", out
 
 
 def find_base(d, setname):
@@ -441,13 +502,19 @@ def subsets(act):
 
 # --------------------------------------------------------------- прогон
 def run(args):
-    d = load(args.pred)
+    if args.join:
+        paths = [args.pred] + list(args.join)
+        d = join_dumps(paths)
+        print(f"склейка {len(paths)} наборов: " + ", ".join(os.path.basename(x) for x in paths))
+    else:
+        d = load(args.pred)
     lengths = [int(x) for x in d["lengths"]]
     method = str(d["method"])
     setname = str(d["setname"])
 
     print(f"метод: {method}   набор: {setname}")
-    base_name, base_err = find_base(d, setname)
+    base_name, base_err = (find_base_joined(d, paths) if args.join
+                           else find_base(d, setname))
     if base_err is None:
         print("SS: дамп PCHIP на этих окнах не найден — skill score не считается\n")
     else:
@@ -662,6 +729,12 @@ def figure(idx, lengths, method, setname, tag):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--join", nargs="+", default=None, metavar="ДАМП",
+                    help="склеить с этими дампами того же метода (обычно второй "
+                         "тестовый год). Недели разных лет независимы, поэтому "
+                         "блоков становится вдвое больше и интервал сужается "
+                         "примерно в корень из двух. Складывать можно ГОДЫ, "
+                         "но не станции — их окна выровнены по времени")
     ap.add_argument("--pred", required=True, help="дамп оцениваемого метода")
     ap.add_argument("--out", default=None)
     ap.add_argument("--no-fig", action="store_true")

@@ -73,7 +73,9 @@ SPLITS = {
         "test_hard": [2024],     # бурный,     возмущённость 0.275
     },
 }
-SPLIT_NAME = os.environ.get("IGF_SPLIT", "f")
+# «or» вместо значения по умолчанию: пустая переменная (IGF_SPLIT=) —
+# это не выбор сплита, а её отсутствие
+SPLIT_NAME = os.environ.get("IGF_SPLIT") or "f"
 if SPLIT_NAME not in SPLITS:
     raise SystemExit(f"IGF_SPLIT={SPLIT_NAME}: есть только {', '.join(SPLITS)}")
 SPLIT = SPLITS[SPLIT_NAME]

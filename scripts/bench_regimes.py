@@ -87,7 +87,19 @@ Q05 = {2: 1.960, 3: 2.343, 4: 2.569, 5: 2.728, 6: 2.850, 7: 2.949, 8: 3.031, 9: 
 
 
 def pretty(m):
-    return PRETTY.get(m.replace("_best", ""), m) + ("*" if m.endswith("_best") else "")
+    """Человеческое имя метода. Суффиксы в имени чекпойнта несут смысл и
+    сохраняются в метке: _best — конфигурация из грида (*), _xyz — вход из
+    трёх компонент вместо модуля (XYZ)."""
+    base, tag = m, ""
+    if base.endswith("_xyz"):
+        base, tag = base[:-4], " XYZ"
+    if base.endswith("_best"):
+        base, tag = base[:-5], tag + "*"
+    for sp in C.SPLITS:
+        if base.endswith("_" + sp):
+            base = base[:-len(sp) - 1]
+            break
+    return PRETTY.get(base, base) + tag
 
 
 def load_all(methods, setname):
@@ -204,15 +216,18 @@ def main_joined(a):
     if a.base not in methods:
         methods.append(a.base)
     names = [pretty(m) for m in methods]
-    setname = f"{a.code}_joined"
+    setname = (f"{a.code}_joined" if C.SPLIT_NAME == "f"
+               else f"{a.code}_{C.SPLIT_NAME}_joined")
     print(f"независимая версия: {a.code}, наборы {', '.join(a.join)} "
           f"(годы {', '.join(str(C.SPLIT[s][0]) for s in a.join)})")
     print("каждая неделя отдана одной длине режима (раздача по возмущённости), "
           "годы сложены — недели разных лет независимы" + chr(10))
 
+    if a.tag:
+        setname = f"{setname}_{a.tag}"
     per_split = {}
     for sp in a.join:
-        per_split[sp] = load_all(methods, f"{a.code}_{sp}")
+        per_split[sp] = load_all(methods, C.setname(a.code, sp))
     lengths = sorted(per_split[a.join[0]][methods[0]])
     groups = [("все длины", lengths)] + [(g, [L for L in Ls if L in lengths]) for g, Ls in REGIMES]
 
@@ -280,17 +295,24 @@ def main():
     ap.add_argument("--code", default=C.CODE)
     ap.add_argument("--methods", nargs="+", default=DEFAULT_METHODS)
     ap.add_argument("--base", default="pchip", help="базлайн для Score")
+    ap.add_argument("--tag", default=None,
+                    help="метка для имён выходных файлов (regimes_<набор>_<метка>.csv). "
+                         "Нужна, когда на одном наборе считается несколько "
+                         "ранжирований — например по модулю и по компонентам: "
+                         "без метки второе затирало бы первое")
     ap.add_argument("--join", nargs="+", default=None, metavar="СПЛИТ",
                     help="независимая версия: сложить эти наборы (напр. --join test test_hard), "
                          "каждой неделе дать одну длину; --split при этом игнорируется")
     a = ap.parse_args()
     if a.join:
         return main_joined(a)
-    setname = f"{a.code}_{a.split}"
+    setname = C.setname(a.code, a.split)
     methods = list(a.methods)
     if a.base not in methods:
         methods.append(a.base)
     data = load_all(methods, setname)
+    if a.tag:
+        setname = f"{setname}_{a.tag}"
     lengths = sorted(data[methods[0]])
     names = [pretty(m) for m in methods]
 
