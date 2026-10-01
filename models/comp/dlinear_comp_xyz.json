@@ -1,0 +1,24 @@
+{
+ "arch": "dlinear",
+ "params": 5975724,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.0003,
+ "best_val": 4.334401645069608,
+ "scale": [
+  10.675009727478027,
+  13.479135513305664,
+  4.598376274108887
+ ],
+ "channels": 3,
+ "comp": true,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "ARS",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/dlinear_best.json",
+ "seconds": 482
+}

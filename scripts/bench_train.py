@@ -129,6 +129,13 @@ def main():
     ap.add_argument("--kw", nargs="*", default=[],
                     help="параметры ёмкости, напр. base=48 depth=5")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--amp", action="store_true",
+                    help="обучать в смешанной точности bfloat16 (autocast). "
+                         "На тяжёлых архитектурах даёт до 2.7x по времени. "
+                         "GradScaler не нужен: у bfloat16 тот же диапазон "
+                         "экспоненты, что у float32, переполнения градиентов не "
+                         "возникает. ВАЖНО: модели, обученные в разной точности, "
+                         "нельзя ставить в один рейтинг — это разный бюджет")
     ap.add_argument("--code", default=C.CODE,
                     help="станция обучения (train/val/scale — её; по умолчанию ARS)")
     ap.add_argument("--gap-pool-code", default=C.CODE,
@@ -185,6 +192,11 @@ def main():
     pool_years = train if args.gap_pool_code == args.code else C.load_split("train", code=args.gap_pool_code)
     sampler = C.GapSampler(pool_years, gmin=GMIN)
     rng = np.random.default_rng(C.SEED)
+    # Начальные веса тоже от фиксированного зерна. Без этого два запуска одной
+    # конфигурации отличаются не только тем, что мы меняли, и сравнивать их
+    # нельзя: разница точности смешивается с разницей инициализации.
+    torch.manual_seed(C.SEED)
+    torch.cuda.manual_seed_all(C.SEED)
 
     M.set_patch(args.patch)          # представление входа до построения
     net = M.build(args.arch, **kw).to(device)
@@ -228,13 +240,15 @@ def main():
             X, msk, Y, A = make_batch(train, sampler, scale, rng, args.batch,
                                       long_only=args.long_only, comps=ctrain)
             X, msk, Y, A = X.to(device), msk.to(device), Y.to(device), A.to(device)
-            if hasattr(net, "custom_loss"):
-                # у диффузии своя цель (предсказание шума); подменять её общим
-                # masked MAE нельзя, поэтому лосс берётся у самой модели
-                loss = net.custom_loss(X, msk, Y, A)
-            else:
-                pred = net(X, msk)
-                loss = (torch.abs(pred - Y) * A).sum() / A.sum().clamp(min=1)
+            with torch.autocast("cuda", dtype=torch.bfloat16,
+                                enabled=args.amp and device == "cuda"):
+                if hasattr(net, "custom_loss"):
+                    # у диффузии своя цель (предсказание шума); подменять её
+                    # общим masked MAE нельзя, лосс берётся у самой модели
+                    loss = net.custom_loss(X, msk, Y, A)
+                else:
+                    pred = net(X, msk)
+                    loss = (torch.abs(pred - Y) * A).sum() / A.sum().clamp(min=1)
             if not torch.isfinite(loss):
                 nonfin += 1          # нефинитный лосс в backward не пускаем:
                 continue             # один такой шаг убил бы веса необратимо
@@ -263,6 +277,7 @@ def main():
                        channels=int(M.NCH), comp=bool(args.comp),
                        kw=kw, patch=args.patch, window=int(C.W), long_only=args.long_only,
                        code=args.code, gap_pool_code=args.gap_pool_code, cfg=args.cfg,
+                       amp="bfloat16" if args.amp else "float32", seed=int(C.SEED),
                        seconds=round(time.time() - t0)), f, ensure_ascii=False, indent=1)
 
 

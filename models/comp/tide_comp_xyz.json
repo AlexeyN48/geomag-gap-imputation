@@ -1,0 +1,24 @@
+{
+ "arch": "tide",
+ "params": 41287576,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.003,
+ "best_val": 4.386013295438123,
+ "scale": [
+  10.675009727478027,
+  13.479135513305664,
+  4.598376274108887
+ ],
+ "channels": 3,
+ "comp": true,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "ARS",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/tide_best.json",
+ "seconds": 454
+}
