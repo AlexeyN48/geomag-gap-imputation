@@ -166,6 +166,7 @@ def _build_length_fields(smps, fn, acts, L):
     pr = np.full((n, span), np.nan, np.float32)
     act = np.zeros(n, np.float32)
     g0 = np.zeros(n, np.int32)
+    w0 = np.zeros(n, np.int32)      # старт окна в годовом ряду
     blk = np.zeros(n, np.int32)
     errs = []
     preds = fn([s["input"] for s in smps], [s["start"] for s in smps],
@@ -181,14 +182,20 @@ def _build_length_fields(smps, fn, acts, L):
         mk = s["mask_art"]
         errs.append(np.abs(pred[mk] - s["target"][mk]).mean())
         st = s["start"]
-        act[i] = acts[s["year"]][st:st + C.W].mean()
+        # Метка возмущённости окна. acts — готовые значения по СТАРТАМ окна
+        # (C.window_activity), а не поминутный ряд: усреднять поминутный
+        # скользящий индекс по окну нельзя, его рамка вылезает за края окна
+        # на 12 часов в каждую сторону и метка описывает соседние полсуток.
+        act[i] = acts[s["year"]][st]
         g0[i] = a
+        w0[i] = st
         # блок для блочного бутстрэпа (bench_metrics): год и календарная
         # неделя, в которую попадает НАЧАЛО дыры. Окна в дампе перекрываются
         # (на длинных дырах каждая минута года лежит в ~8 дырах), поэтому
         # ресэмплировать по окнам нельзя — только неделями целиком.
         blk[i] = int(s["year"]) * 100 + (st + a) // C.BLOCK
-    return dict(true=tr, pred=pr, act=act, gap0=g0, block=blk), float(np.mean(errs))
+    return (dict(true=tr, pred=pr, act=act, gap0=g0, block=blk, win0=w0),
+            float(np.mean(errs)))
 
 
 def _save_dump(args, code, lengths, fields_by_L):
@@ -198,6 +205,7 @@ def _save_dump(args, code, lengths, fields_by_L):
         out[f"L{L}_pred"] = fields["pred"]
         out[f"L{L}_act"] = fields["act"]
         out[f"L{L}_gap0"] = fields["gap0"]
+        out[f"L{L}_win0"] = fields["win0"]
         out[f"L{L}_block"] = fields["block"]
     setname = C.setname(code, args.split)
     out["method"] = np.array(args.method)
@@ -252,7 +260,7 @@ def run(args):
         # самое, что независимые прогоны по каждой станции отдельно.
         codes = [c.strip() for c in args.align_codes.split(",") if c.strip()]
         years_by_code = {c: C.load_split(args.split, code=c) for c in codes}
-        acts_by_code = {c: {y: C.activity(F) for y, F in yy.items()}
+        acts_by_code = {c: {y: C.window_activity(F) for y, F in yy.items()}
                         for c, yy in years_by_code.items()}
         print(f"метод={args.method}  align_codes={codes}  сплит={args.split}  "
               f"n={args.n}  margin={C.MARGIN}")
@@ -274,7 +282,7 @@ def run(args):
         return
 
     years = C.load_split(args.split, code=args.code)
-    acts = {y: C.activity(F) for y, F in years.items()}
+    acts = {y: C.window_activity(F) for y, F in years.items()}
     setname = C.setname(args.code, args.split)
 
     print(f"метод={args.method}  набор={setname} ({', '.join(map(str, sorted(years)))})"
@@ -301,6 +309,7 @@ def run(args):
             out[f"L{L}_pred"] = fields["pred"]
             out[f"L{L}_act"] = fields["act"]
             out[f"L{L}_gap0"] = fields["gap0"]
+            out[f"L{L}_win0"] = fields["win0"]
             out[f"L{L}_block"] = fields["block"]
         out["method"] = np.array(args.method)
         out["setname"] = np.array(setname)

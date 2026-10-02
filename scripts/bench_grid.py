@@ -60,8 +60,12 @@ import shutil
 import argparse
 import subprocess
 
+import bench_common as C
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-MODELS = os.path.abspath(os.path.join(HERE, "..", "models"))
+# Каталоги зависят от семейства сплита: грид, посчитанный на одном разбиении
+# по годам, к другому не относится, и смешивать их нельзя.
+MODELS = C.MODELS
 GRID_DIR = os.path.join(MODELS, "grid")
 
 STEPS = 12000
@@ -71,6 +75,10 @@ SIZES = ("S", "M", "L")
 
 # arch -> (главный параметр, {S, M, L: значение}, производные kw(value))
 # порядок — по стоимости одного прогона (минуты на RTX 4060, по models/*.json)
+# CrossFormer и CSDI выведены из работы по стоимости счёта: 3.8 и 2.6 часа на
+# одно обучение против 0.1-1.5 у остальных, вместе — половина стоимости грида.
+# Решение и его цена описаны в отчёте (раздел 4). Здесь они просто исключены,
+# чтобы бюджет подбора у всех участников работы остался равным.
 GRID = {
     "dlinear":      ("kernel",     {"S": 13,  "M": 25,  "L": 49},  lambda v: {}),
     "nbeatsx":      ("mlp",        {"S": 128, "M": 256, "L": 512}, lambda v: {}),
@@ -82,31 +90,45 @@ GRID = {
     "timesnet":     ("d_model",    {"S": 32,  "M": 64,  "L": 128}, lambda v: {"d_ffn": 2 * v}),
     "saits":        ("d_model",    {"S": 64,  "M": 128, "L": 256}, lambda v: {"d_ffn": 2 * v}),
     "imputeformer": ("d_model",    {"S": 32,  "M": 64,  "L": 128}, lambda v: {}),
-    "csdi":         ("n_channels", {"S": 32,  "M": 64,  "L": 128}, lambda v: {}),
-    "crossformer":  ("d_model",    {"S": 64,  "M": 128, "L": 256}, lambda v: {"d_ffn": v}),
 }
-COST_MIN = {"dlinear": 5, "nbeatsx": 5, "nhits": 6, "tide": 6, "tsmixerx": 6, "segrnn": 7,
-            "unet": 8, "timesnet": 47, "saits": 73, "imputeformer": 82, "csdi": 151,
-            "crossformer": 177}
+# Минуты на ОДНО обучение, по измерениям на RTX 4060 (models/comp/*.json,
+# поле seconds), а не по прикидкам. Прежние числа занижали: у ImputeFormer на
+# компонентах выходило 3.0 ч против заявленных 1.4. Для компонентного входа
+# время отличается и указано отдельно, где отличие существенно.
+COST_MIN = {"dlinear": 5, "nbeatsx": 5, "nhits": 6, "tide": 6, "tsmixerx": 6,
+            "segrnn": 7, "unet": 8, "timesnet": 23, "imputeformer": 82,
+            "saits": 90}
+COST_MIN_XYZ = {"imputeformer": 182, "saits": 77, "timesnet": 26, "unet": 10,
+                "segrnn": 10, "tsmixerx": 8, "nhits": 8, "dlinear": 8,
+                "tide": 8, "nbeatsx": 7}
 
 # существующие чекпойнты, совпадающие с ячейкой грида (проверяется по json)
-REUSE = {
-    ("unet", 3e-4, "M"): "unet_lr3e4", ("unet", 3e-3, "M"): "unet_lr3e3",
-    ("unet", 1e-3, "S"): "unet_b16",   ("unet", 1e-3, "L"): "unet_b48",
-    ("segrnn", 1e-3, "S"): "segrnn_d64", ("segrnn", 1e-3, "L"): "segrnn_d256",
-    ("saits", 1e-3, "L"): "saits_d256",
-}
-for _a in GRID:
-    REUSE[(_a, 1e-3, "M")] = _a        # базовые прогоны = ячейка (1e-3, M)
+# Переиспользование готовых чекпойнтов вместо обучения ячейки. На ТЕКУЩЕМ
+# сплите отключено намеренно, и список пуст.
+#
+# Причина не в именах файлов, а в сопоставимости. Обученные модели работы
+# отбирались ПРЕЖНИМ критерием выбора чекпойнта (валидационный набор с
+# естественным распределением длин дыр, ошибка пулом по точкам). Ячейки грида
+# обучаются НОВЫМ критерием (по 30 окон на каждую длину бенчмарка,
+# геометрическое среднее). Подставить готовую модель в ячейку значит сравнивать
+# внутри грида конфигурации, отобранные разными правилами, — ровно тот
+# неравный бюджет, от которого грид и защищает.
+#
+# Прежние записи указывали на модели сплита "f" (unet_lr3e4, unet_b16,
+# segrnn_d64, segrnn_d256, saits_d256 и базовые прогоны под именем
+# архитектуры). Их на диске больше нет, так что до сих пор таблица просто не
+# срабатывала; теперь это зафиксировано явно, а не держится на отсутствии
+# файлов.
+REUSE = {}
 
 
 def kw_for(arch, size):
     knob, vals, extra = GRID[arch]
     v = vals[size]
-    if size == "M" and arch != "crossformer":
-        # дефолт конструктора: kw пустой, как в базовых прогонах (для
-        # crossformer M — не дефолт d_model=256, а вдвое меньше: 16 M параметров
-        # при 256 делают L неподъёмным, поэтому его сетка сдвинута вниз)
+    if size == "M":
+        # Средний размер — это дефолт конструктора архитектуры: kw пустой,
+        # ровно как в базовых прогонах. Отсюда и переиспользование чекпойнтов
+        # (REUSE): базовая ячейка уже обучена.
         return {}
     return {knob: v, **extra(v)}
 
@@ -116,11 +138,22 @@ def cell_name(arch, lr, size):
 
 
 def base_batch(arch):
-    """batch/accum базового прогона (память): эффективный батч 16 у всех."""
-    p = os.path.join(MODELS, f"{arch}.json")
-    if os.path.exists(p):
-        j = json.load(open(p, encoding="utf-8"))
-        return int(j.get("batch", 16)), int(j.get("accum", 1))
+    """batch/accum обученной модели этой архитектуры: эффективный батч 16 у
+    всех, но у тяжёлых он набирается накоплением градиента (8x2), потому что
+    16 целиком не влезает в память видеокарты.
+
+    Ищем в чекпойнтах ТЕКУЩЕГО сплита: имя там <арх>_<сплит>.json. Если их
+    ещё нет — в моделях прежнего сплита (models/<арх>.json). Молчаливый
+    откат на (16, 1) опасен: для SAITS, ImputeFormer и TimesNet это
+    переполнение памяти, поэтому про откат говорим вслух."""
+    for cand in (os.path.join(MODELS, f"{arch}_{C.SPLIT_NAME}.json"),
+                 os.path.join(MODELS, f"{arch}.json"),
+                 os.path.join(os.path.dirname(MODELS.rstrip("/\\")), f"{arch}.json")):
+        if os.path.exists(cand):
+            j = json.load(open(cand, encoding="utf-8"))
+            return int(j.get("batch", 16)), int(j.get("accum", 1))
+    print(f"  ВНИМАНИЕ: нет json для {arch}, беру батч 16x1 — если архитектура "
+          f"тяжёлая, это переполнит память", flush=True)
     return 16, 1
 
 
@@ -171,10 +204,32 @@ def train(arch, lr, size, dry):
         cmd += ["--kw"] + [f"{k}={v}" for k, v in kw.items()]
     t0 = time.time()
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
-    with open(out.replace(".pt", ".log"), "w", encoding="utf-8") as log:
-        r = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=env)
-    if r.returncode != 0:
-        raise SystemExit(f"обучение {name} упало, см. {out.replace('.pt', '.log')}")
+    logp = out.replace(".pt", ".log")
+    # Одна повторная попытка. Причина: ночной прогон дважды останавливался
+    # целиком из-за срыва контекста CUDA в одной ячейке («CUDA error: unknown
+    # error» на обратном проходе), при том что соседняя ячейка той же
+    # архитектуры проходила за шесть минут до этого. Терять очередь из
+    # тринадцати обучений из-за одного сбоя драйвера незачем. Повтор ровно
+    # один: если ячейка падает дважды, причина не случайная, и грид встаёт —
+    # тогда остановка правильна.
+    for attempt in (1, 2):
+        with open(logp, "w", encoding="utf-8") as log:
+            r = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT, env=env)
+        if r.returncode == 0:
+            break
+        tail = ""
+        try:
+            lines = [x.rstrip() for x in open(logp, encoding="utf-8", errors="replace")]
+            tail = next((x for x in reversed(lines) if x.strip()), "")
+        except OSError:
+            pass
+        if attempt == 1:
+            print(f"    сбой ({tail[:70]}) — повтор", flush=True)
+            if os.path.exists(out):
+                os.remove(out)
+            time.sleep(20)          # дать драйверу освободить контекст
+        else:
+            raise SystemExit(f"обучение {name} упало дважды, см. {logp}")
     print(f"    ok, {(time.time() - t0) / 60:.0f} мин", flush=True)
 
 
@@ -189,8 +244,8 @@ def best_lr(arch):
     return min(vals, key=vals.get)
 
 
-DATA = os.path.abspath(os.path.join(HERE, "..", "data"))
-SET = "ARS_val"
+DATA = C.OUT
+SET = C.setname("ARS", "val")
 
 
 def _sh(args):
@@ -395,6 +450,15 @@ def main():
     if a.dry_run:
         print(f"\nоценка обучения (без переиспользованных): ~{total / 60:.1f} ч")
 
+    else:
+        # Явный признак окончания. Без него долгий прогон заканчивается молча,
+        # и по логу нельзя отличить «закончил» от «упал без сообщения» —
+        # внешнему сторожу не на что смотреть.
+        have = len([f for f in os.listdir(GRID_DIR)
+                    if f.endswith(".json")]) if os.path.isdir(GRID_DIR) else 0
+        print("ГРИД ЗАВЕРШЁН: ячеек в каталоге " + str(have)
+              + ", в этой порции требовалось " + str(5 * len(archs))
+              + " (" + ", ".join(archs) + ")", flush=True)
 
 if __name__ == "__main__":
     main()

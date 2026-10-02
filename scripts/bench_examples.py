@@ -27,13 +27,12 @@ import bench_common as C
 from bench_regimes import PRETTY
 
 OUT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "figures", "gap_examples"))
-ARCHS = ["unet", "saits", "crossformer", "timesnet", "imputeformer"]
+ARCHS = ["unet", "saits", "timesnet", "imputeformer"]
 NETS = [f"{a}_best" for a in ARCHS]       # переопределяется в main() по --train-code
 # фиксированный порядок цветов (палитра проверена валидатором dataviz: all-pairs,
 # light; пары с ΔE в полосе 6–8 закрыты прямыми подписями и разным штрихом)
-COLORS = {"unet": "#2a78d6", "saits": "#eda100", "crossformer": "#1baf7a",
-          "timesnet": "#4a3aa7", "imputeformer": "#e87ba4"}
-STYLES = {"unet": "-", "saits": "-", "crossformer": "--", "timesnet": "-", "imputeformer": "--"}
+COLORS = {"unet": "#2a78d6", "saits": "#eda100",           "timesnet": "#4a3aa7", "imputeformer": "#e87ba4"}
+STYLES = {"unet": "-", "saits": "-", "timesnet": "-", "imputeformer": "--"}
 
 
 def arch_of(n):

@@ -72,12 +72,12 @@ FIGS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "figures"))
 REGIMES = [("≤120 мин", [5, 15, 60, 120]),
            ("120–1000 мин", [240, 480, 720, 1000]),
            (">1000 мин", [1440, 2160, 2880, 4320])]
-DEFAULT_METHODS = ["unet_best", "saits_best", "crossformer_best", "timesnet_best",
-                   "imputeformer_best", "csdi_best", "tsmixerx_best", "nhits_best",
+DEFAULT_METHODS = ["unet_best", "saits_best", "timesnet_best",
+                   "imputeformer_best", "tsmixerx_best", "nhits_best",
                    "dlinear_best", "nbeatsx_best", "segrnn_best", "tide_best",
                    "pchip", "linear", "locf"]
 PRETTY = {"unet": "U-Net", "saits": "SAITS", "crossformer": "CrossFormer", "timesnet": "TimesNet",
-          "imputeformer": "ImputeFormer", "csdi": "CSDI", "tsmixerx": "TSMixer", "nhits": "N-HiTS",
+          "imputeformer": "ImputeFormer", "tsmixerx": "TSMixer", "nhits": "N-HiTS",
           "dlinear": "DLinear", "nbeatsx": "N-BEATSx", "segrnn": "SegRNN", "tide": "TiDE",
           "pchip": "PCHIP", "linear": "Linear", "locf": "LOCF", "mean": "Mean", "daily": "Daily"}
 # критические значения Немени, α = 0.05 (Demšar 2006, табл. 5), k = 2..20

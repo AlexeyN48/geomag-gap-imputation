@@ -63,38 +63,6 @@ saits_comp_xyz,MAE_gm,120–1000 мин,4.18656
 saits_comp_xyz,Score_gm,120–1000 мин,0.370527
 saits_comp_xyz,MAE_gm,>1000 мин,5.73051
 saits_comp_xyz,Score_gm,>1000 мин,0.507801
-crossformer_comp_xyz,MAE,5,1.75741
-crossformer_comp_xyz,Score,5,-7.44678
-crossformer_comp_xyz,MAE,15,1.20077
-crossformer_comp_xyz,Score,15,-2.24618
-crossformer_comp_xyz,MAE,60,1.71747
-crossformer_comp_xyz,Score,60,-0.533328
-crossformer_comp_xyz,MAE,120,2.30129
-crossformer_comp_xyz,Score,120,-0.221662
-crossformer_comp_xyz,MAE,240,3.42613
-crossformer_comp_xyz,Score,240,0.088498
-crossformer_comp_xyz,MAE,480,4.31793
-crossformer_comp_xyz,Score,480,0.363294
-crossformer_comp_xyz,MAE,720,4.50159
-crossformer_comp_xyz,Score,720,0.455819
-crossformer_comp_xyz,MAE,1000,5.01922
-crossformer_comp_xyz,Score,1000,0.459097
-crossformer_comp_xyz,MAE,1440,5.59949
-crossformer_comp_xyz,Score,1440,0.520043
-crossformer_comp_xyz,MAE,2160,5.66
-crossformer_comp_xyz,Score,2160,0.481647
-crossformer_comp_xyz,MAE,2880,6.0257
-crossformer_comp_xyz,Score,2880,0.487887
-crossformer_comp_xyz,MAE,4320,6.51062
-crossformer_comp_xyz,Score,4320,0.468882
-crossformer_comp_xyz,MAE_gm,все длины,3.50743
-crossformer_comp_xyz,Score_gm,все длины,0.0425131
-crossformer_comp_xyz,MAE_gm,≤120 мин,1.69941
-crossformer_comp_xyz,Score_gm,≤120 мин,-1.67709
-crossformer_comp_xyz,MAE_gm,120–1000 мин,4.27583
-crossformer_comp_xyz,Score_gm,120–1000 мин,0.357105
-crossformer_comp_xyz,MAE_gm,>1000 мин,5.93811
-crossformer_comp_xyz,Score_gm,>1000 мин,0.489969
 timesnet_comp_xyz,MAE,5,1.5906
 timesnet_comp_xyz,Score,5,-6.64504
 timesnet_comp_xyz,MAE,15,1.07178
@@ -415,71 +383,67 @@ linear,MAE_gm,120–1000 мин,6.77473
 linear,Score_gm,120–1000 мин,-0.0186176
 linear,MAE_gm,>1000 мин,11.7142
 linear,Score_gm,>1000 мин,-0.00614037
-unet_comp_xyz,mean_rank,все длины,2.4896
-saits_comp_xyz,mean_rank,все длины,3.2279
-crossformer_comp_xyz,mean_rank,все длины,3.7047
-timesnet_comp_xyz,mean_rank,все длины,5.0321
-imputeformer_comp_xyz,mean_rank,все длины,6.4799
-tsmixerx_comp_xyz,mean_rank,все длины,6.7592
-nhits_comp_xyz,mean_rank,все длины,7.9278
-dlinear_comp_xyz,mean_rank,все длины,9.8989
-nbeatsx_comp_xyz,mean_rank,все длины,10.3242
-segrnn_comp_xyz,mean_rank,все длины,10.0674
-tide_comp_xyz,mean_rank,все длины,9.0787
-pchip,mean_rank,все длины,7.9037
-linear,mean_rank,все длины,8.1059
-,friedman_chi2,все длины,3521
+unet_comp_xyz,mean_rank,все длины,2.2873
+saits_comp_xyz,mean_rank,все длины,2.8427
+timesnet_comp_xyz,mean_rank,все длины,4.3130
+imputeformer_comp_xyz,mean_rank,все длины,5.6100
+tsmixerx_comp_xyz,mean_rank,все длины,5.8620
+nhits_comp_xyz,mean_rank,все длины,6.9470
+dlinear_comp_xyz,mean_rank,все длины,8.9117
+nbeatsx_comp_xyz,mean_rank,все длины,9.3355
+segrnn_comp_xyz,mean_rank,все длины,9.0738
+tide_comp_xyz,mean_rank,все длины,8.1059
+pchip,mean_rank,все длины,7.2552
+linear,mean_rank,все длины,7.4559
+,friedman_chi2,все длины,2964
 ,friedman_p,все длины,0
-,nemenyi_CD,все длины,0.7310
+,nemenyi_CD,все длины,0.6676
 ,N_cells,все длины,623
-unet_comp_xyz,mean_rank,≤120 мин,3.0481
-saits_comp_xyz,mean_rank,≤120 мин,4.8317
-crossformer_comp_xyz,mean_rank,≤120 мин,5.0577
-timesnet_comp_xyz,mean_rank,≤120 мин,4.9423
-imputeformer_comp_xyz,mean_rank,≤120 мин,8.0192
-tsmixerx_comp_xyz,mean_rank,≤120 мин,9.1442
-nhits_comp_xyz,mean_rank,≤120 мин,8.0865
-dlinear_comp_xyz,mean_rank,≤120 мин,10.5673
-nbeatsx_comp_xyz,mean_rank,≤120 мин,11.7933
-segrnn_comp_xyz,mean_rank,≤120 мин,11.8894
-tide_comp_xyz,mean_rank,≤120 мин,10.2163
-pchip,mean_rank,≤120 мин,1.5769
-linear,mean_rank,≤120 мин,1.8269
-,friedman_chi2,≤120 мин,2212
+unet_comp_xyz,mean_rank,≤120 мин,2.9856
+saits_comp_xyz,mean_rank,≤120 мин,4.3365
+timesnet_comp_xyz,mean_rank,≤120 мин,4.4856
+imputeformer_comp_xyz,mean_rank,≤120 мин,7.1154
+tsmixerx_comp_xyz,mean_rank,≤120 мин,8.1442
+nhits_comp_xyz,mean_rank,≤120 мин,7.0913
+dlinear_comp_xyz,mean_rank,≤120 мин,9.5673
+nbeatsx_comp_xyz,mean_rank,≤120 мин,10.7933
+segrnn_comp_xyz,mean_rank,≤120 мин,10.8894
+tide_comp_xyz,mean_rank,≤120 мин,9.2308
+pchip,mean_rank,≤120 мин,1.5481
+linear,mean_rank,≤120 мин,1.8125
+,friedman_chi2,≤120 мин,2009
 ,friedman_p,≤120 мин,0
-,nemenyi_CD,≤120 мин,1.2652
+,nemenyi_CD,≤120 мин,1.1554
 ,N_cells,≤120 мин,208
-unet_comp_xyz,mean_rank,120–1000 мин,1.7885
-saits_comp_xyz,mean_rank,120–1000 мин,2.4904
-crossformer_comp_xyz,mean_rank,120–1000 мин,2.8462
-timesnet_comp_xyz,mean_rank,120–1000 мин,5.1250
-imputeformer_comp_xyz,mean_rank,120–1000 мин,6.4375
-tsmixerx_comp_xyz,mean_rank,120–1000 мин,6.1346
-nhits_comp_xyz,mean_rank,120–1000 мин,7.6346
-dlinear_comp_xyz,mean_rank,120–1000 мин,9.5865
-nbeatsx_comp_xyz,mean_rank,120–1000 мин,10.2356
-segrnn_comp_xyz,mean_rank,120–1000 мин,9.8846
-tide_comp_xyz,mean_rank,120–1000 мин,9.1298
-pchip,mean_rank,120–1000 мин,9.6394
-linear,mean_rank,120–1000 мин,10.0673
-,friedman_chi2,120–1000 мин,1593
-,friedman_p,120–1000 мин,0
-,nemenyi_CD,120–1000 мин,1.2652
+unet_comp_xyz,mean_rank,120–1000 мин,1.5817
+saits_comp_xyz,mean_rank,120–1000 мин,2.1202
+timesnet_comp_xyz,mean_rank,120–1000 мин,4.2308
+imputeformer_comp_xyz,mean_rank,120–1000 мин,5.5048
+tsmixerx_comp_xyz,mean_rank,120–1000 мин,5.1923
+nhits_comp_xyz,mean_rank,120–1000 мин,6.6587
+dlinear_comp_xyz,mean_rank,120–1000 мин,8.5962
+nbeatsx_comp_xyz,mean_rank,120–1000 мин,9.2404
+segrnn_comp_xyz,mean_rank,120–1000 мин,8.8894
+tide_comp_xyz,mean_rank,120–1000 мин,8.1346
+pchip,mean_rank,120–1000 мин,8.7212
+linear,mean_rank,120–1000 мин,9.1298
+,friedman_chi2,120–1000 мин,1334
+,friedman_p,120–1000 мин,1.98e-279
+,nemenyi_CD,120–1000 мин,1.1554
 ,N_cells,120–1000 мин,208
-unet_comp_xyz,mean_rank,>1000 мин,2.6329
-saits_comp_xyz,mean_rank,>1000 мин,2.3575
-crossformer_comp_xyz,mean_rank,>1000 мин,3.2077
-timesnet_comp_xyz,mean_rank,>1000 мин,5.0290
-imputeformer_comp_xyz,mean_rank,>1000 мин,4.9758
-tsmixerx_comp_xyz,mean_rank,>1000 мин,4.9903
-nhits_comp_xyz,mean_rank,>1000 мин,8.0628
-dlinear_comp_xyz,mean_rank,>1000 мин,9.5411
-nbeatsx_comp_xyz,mean_rank,>1000 мин,8.9372
-segrnn_comp_xyz,mean_rank,>1000 мин,8.4203
-tide_comp_xyz,mean_rank,>1000 мин,7.8841
-pchip,mean_rank,>1000 мин,12.5169
-linear,mean_rank,>1000 мин,12.4444
-,friedman_chi2,>1000 мин,1928
+unet_comp_xyz,mean_rank,>1000 мин,2.2947
+saits_comp_xyz,mean_rank,>1000 мин,2.0676
+timesnet_comp_xyz,mean_rank,>1000 мин,4.2222
+imputeformer_comp_xyz,mean_rank,>1000 мин,4.2029
+tsmixerx_comp_xyz,mean_rank,>1000 мин,4.2415
+nhits_comp_xyz,mean_rank,>1000 мин,7.0918
+dlinear_comp_xyz,mean_rank,>1000 мин,8.5700
+nbeatsx_comp_xyz,mean_rank,>1000 мин,7.9662
+segrnn_comp_xyz,mean_rank,>1000 мин,7.4348
+tide_comp_xyz,mean_rank,>1000 мин,6.9469
+pchip,mean_rank,>1000 мин,11.5169
+linear,mean_rank,>1000 мин,11.4444
+,friedman_chi2,>1000 мин,1757
 ,friedman_p,>1000 мин,0
-,nemenyi_CD,>1000 мин,1.2682
+,nemenyi_CD,>1000 мин,1.1582
 ,N_cells,>1000 мин,207

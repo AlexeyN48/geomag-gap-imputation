@@ -227,106 +227,6 @@ class ImputeFormer(nn.Module):
         return self.head(h)                              # [B,WB,P]
 
 
-class Crossformer(nn.Module):
-    """Двухстадийное внимание: по времени И по латентным измерениям.
-
-    Ряд режется на сегменты по seg_len, поэтому внимание идёт по 72 сегментам,
-    а не по 1728 отсчётам — без сегментации конфигурация требует 13.3 ГиБ при
-    8 доступных (замерено)."""
-
-    def __init__(self, n_layers=3, d_model=256, n_heads=4, d_ffn=256,
-                 factor=10, seg_len=24, win_size=2, **kw):
-        super().__init__()
-        from math import ceil
-        from einops import rearrange
-        from pypots.nn.modules.crossformer import CrossformerEncoder, ScaleBlock
-        from pypots.nn.modules.patchtst import PatchEmbedding
-        from pypots.nn.modules.saits import SaitsEmbedding
-        self.rearrange = rearrange
-        self.d_model = d_model
-        pad = ceil(WB / seg_len) * seg_len
-        seg_num = pad // seg_len
-        self.emb = SaitsEmbedding(NF * 2, d_model, with_pos=False)
-        self.patch = PatchEmbedding(d_model, seg_len, seg_len, pad - WB, 0)
-        self.pos = nn.Parameter(torch.randn(1, d_model, seg_num, d_model) * 0.02)
-        self.norm = nn.LayerNorm(d_model)
-        self.enc = CrossformerEncoder([
-            ScaleBlock(1 if l == 0 else win_size, d_model, n_heads, d_ffn, 1, 0.1,
-                       seg_num if l == 0 else ceil(seg_num / win_size ** l), factor)
-            for l in range(n_layers)])
-        self.out_seg = ceil(seg_num / (win_size ** (n_layers - 1)))
-        self.head = nn.Sequential(nn.Flatten(start_dim=-2),
-                                  nn.Linear(self.out_seg * d_model, WB))
-        self.proj = nn.Linear(d_model, POUT)
-
-    def forward(self, X, M):
-        h = self.emb(X, M[:, :, :NF])
-        h = self.patch(h.permute(0, 2, 1))
-        h = h[0] if isinstance(h, tuple) else h
-        h = self.rearrange(h, "(b d) s dm -> b d s dm", d=self.d_model)
-        h = self.norm(h + self.pos)
-        out, _ = self.enc(h)
-        h = out[-1] if isinstance(out, list) else out    # [B,d_model,seg,dm]
-        h = self.head(h.permute(0, 1, 3, 2))             # [B,d_model,WB]
-        return self.proj(h.permute(0, 2, 1))             # [B,WB,P]
-
-
-
-class CSDI(nn.Module):
-    """Диффузионная модель: восстановление сэмплированием из распределения.
-
-    Единственное семейство в наборе, дающее интервалы неопределённости
-    напрямую, а не conformal-надстройкой. Плата двойная — обучение дороже и
-    ВЫВОД дороже: 0.9 с на окно при одном сэмпле (замерено), поэтому
-    валидационный набор здесь уменьшен.
-
-    Работает по P значащим каналам; гармоники времени уходят в side_info, куда
-    их и кладёт исходная реализация."""
-
-    VAL_N = 24                       # окон на валидации: вывод дорог
-
-    def __init__(self, n_layers=2, n_heads=4, n_channels=64, d_feat_emb=16,
-                 n_diff_steps=50, n_samples=1, **kw):
-        super().__init__()
-        from pypots.nn.modules.csdi import BackboneCSDI
-        self.K, self.L = P, WB
-        self.n_samples = n_samples
-        self.d_time = 4                                   # sin/cos суток и года
-        self.feat_emb = nn.Parameter(torch.randn(P, d_feat_emb) * 0.02)
-        self.body = BackboneCSDI(n_layers, n_heads, n_channels, P,
-                                 self.d_time, d_feat_emb, n_channels,
-                                 False, n_diff_steps, "quad", 1e-4, 0.5)
-
-    def _side(self, X, cond):
-        """side_info [B, d_time + d_feat + 1, K, L]: время, признак, маска."""
-        B = X.shape[0]
-        t = X[:, :, P:P + 4].permute(0, 2, 1)                    # [B,4,L]
-        t = t.unsqueeze(2).expand(-1, -1, self.K, -1)            # [B,4,K,L]
-        f = self.feat_emb.t()[None, :, :, None].expand(B, -1, -1, self.L)
-        return torch.cat([t, f, cond.unsqueeze(1)], dim=1)
-
-    def custom_loss(self, X, M, Y, A):
-        """Обучение идёт родным лоссом диффузии, а не общим masked MAE: у неё
-        цель — предсказать шум, и подменять её нельзя."""
-        obs = Y.permute(0, 2, 1)                                 # [B,K,L]
-        cond = M[:, :, :P].permute(0, 2, 1)
-        ind = A.permute(0, 2, 1)
-        return self.body.calc_loss(obs, cond, ind, self._side(X, cond))
-
-    @torch.no_grad()
-    def forward(self, X, M):
-        cond = M[:, :, :P].permute(0, 2, 1)
-        obs = X[:, :, :P].permute(0, 2, 1) * cond
-        out = self.body(obs, cond, self._side(X, cond), self.n_samples)
-        if isinstance(out, (tuple, list)):
-            out = out[0]
-        if out.dim() == 4:                                       # [B,S,K,L]
-            out = out.median(dim=1).values
-        # backbone отдаёт СЫРЫЕ сэмплы; ответ собирается как наблюдения там, где
-        # они есть, и сэмпл в пропусках — так же, как в исходной реализации
-        out = obs * cond + out * (1.0 - cond)
-        return out.permute(0, 2, 1)                              # [B,WB,P]
-
 def _stack_forward(blocks, y, mask):
     """Общий цикл backcast/forecast NHITS и N-BEATS (взят из forward() обеих
     архитектур в neuralforecast дословно): реконструкция уточняется по
@@ -496,8 +396,7 @@ class TiDE(nn.Module):
 
 ARCH = {"dlinear": DLinear, "unet": UNet1D, "segrnn": SegRNN,
         "saits": Saits, "timesnet": TimesNet,
-        "imputeformer": ImputeFormer, "crossformer": Crossformer,
-        "csdi": CSDI,
+        "imputeformer": ImputeFormer,
         "nhits": NHITS, "nbeatsx": NBEATSx,
         "tsmixerx": TSMixerx, "tide": TiDE}
 

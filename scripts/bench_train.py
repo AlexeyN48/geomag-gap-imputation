@@ -63,11 +63,65 @@ def make_batch(years, sampler, scale, rng, bs, long_only=False, comps=None):
             torch.from_numpy(np.stack(Ys)),
             torch.from_numpy(np.stack(As).astype(np.float32)))
 
-def build_valset(years, scale, n=96, seed=C.SEED + 1, gmin=None, comps=None):
-    """Фиксированный валидационный набор: одиночные дыры, одни и те же окна для
-    всех моделей и всех прогонов. При обучении на компонентах в модель идут
-    X, Y, Z, но ошибка чекпойнта считается по собранному из них модулю — тогда
-    момент остановки выбирается по тому же числу, что и в опыте по модулю."""
+VAL_PER_L = 30          # окон на каждую длину бенчмарка в валидационном наборе
+
+
+def build_valset(years, scale, n_per_L=VAL_PER_L, seed=C.SEED + 1, lengths=None,
+                 comps=None):
+    """Фиксированный валидационный набор: по n_per_L окон на КАЖДУЮ длину
+    бенчмарка. Одни и те же окна для всех моделей и всех прогонов.
+
+    Почему по длинам, а не по естественному распределению пропусков. Раньше
+    длины брались из пула реальных пропусков станции (медиана 24 мин), а ошибка
+    считалась пулом по точкам. Из-за этого вклад окна был пропорционален длине
+    его дыры, и сигнал оказывался предельно концентрированным: 6 окон длиннее
+    1000 мин давали 63 % всех точек, а ОДНО окно на 3525 мин — 17 %. Момент
+    остановки фактически выбирали пять окон, причём какие именно — решало зерно.
+
+    Теперь каждая длина представлена одинаково, а свёртка в validate() —
+    геометрическое среднее по длинам, как в бенчмарке по режимам. Вклад одного
+    окна падает с 17 % до 0.3 %, и вес каждого режима ровно треть.
+
+    При обучении на компонентах в модель идут X, Y, Z, но ошибка чекпойнта
+    считается по собранному из них модулю — тогда момент остановки выбирается
+    по тому же числу, что и в опыте по модулю."""
+    rng = np.random.default_rng(seed)
+    lengths = list(lengths or C.LENGTHS)
+    arrs = [(y, F) for y, F in years.items() if F.size > C.W
+            and (comps is None or y in comps)]
+    if not arrs:
+        raise SystemExit("нет годов для валидационного набора")
+    out = []
+    for L in lengths:
+        got, tries = 0, 0
+        while got < n_per_L:
+            tries += 1
+            if tries > 20000 * n_per_L:
+                raise SystemExit(f"не удалось набрать {n_per_L} окон на длину {L}")
+            yy, F = arrs[rng.integers(len(arrs))]
+            st = int(rng.integers(0, F.size - C.W))
+            smp = C.make_sample(F, st, L, rng)
+            if smp is None or smp["mask_real"].mean() > C.MAX_REAL:
+                continue
+            if comps is None:
+                inp = smp["input"]
+            else:
+                inp = comps[yy][st:st + C.W].copy()
+                inp[smp["mask_art"]] = np.nan
+            X, msk, center = M.featurize(inp, st, scale)
+            out.append((X, msk, smp["target"], smp["mask_art"], center, L))
+            got += 1
+    return out
+
+
+def build_valset_legacy(years, scale, n=96, seed=C.SEED + 1, gmin=None, comps=None):
+    """Валидационный набор ПРЕЖНЕГО вида — только для диагностики (--val-compare).
+
+    Длины дыр берутся из пула реальных пропусков станции, а не по длинам
+    бенчмарка, и ошибка считается пулом по точкам. Сохранено, чтобы в одном
+    прогоне сравнить, какой чекпойнт выбрал бы прежний критерий и какой
+    выбирает новый: траектория обучения при этом одна и та же, и разница
+    относится к критерию, а не к шуму обучения."""
     rng = np.random.default_rng(seed)
     sampler = C.GapSampler(years, gmin=gmin or C.GAP_MIN)
     out = []
@@ -86,30 +140,46 @@ def build_valset(years, scale, n=96, seed=C.SEED + 1, gmin=None, comps=None):
             inp = comps[yy][st:st + C.W].copy()
             inp[smp["mask_art"]] = np.nan
         X, msk, center = M.featurize(inp, st, scale)
-        out.append((X, msk, smp["target"], smp["mask_art"], center))
+        out.append((X, msk, smp["target"], smp["mask_art"], center, L))
     return out
 
 
 @torch.no_grad()
-def validate(net, vals, scale, device, bs=16):
-    """Получить предсказания модели на фиксированных vals и посчитать MAE только в тех местах, где были искусственно сделаны пропуски."""
+def validate(net, vals, scale, device, bs=16, pooled=False):
+    """MAE на фиксированном наборе vals, только в искусственных пропусках.
+
+    Свёртка — ГЕОМЕТРИЧЕСКОЕ среднее MAE по длинам, а не пул по всем точкам.
+    Пул весил бы каждое окно пропорционально длине его дыры: точка в дыре на
+    4320 мин и точка в дыре на 5 мин входили бы одинаково, а точек в первой в
+    864 раза больше. Геометрическое среднее даёт каждой длине равный вес — так
+    же, как считается MAE по режимам в отчёте."""
     net.eval()
+    agg = {}
     tot = cnt = 0.0
     for i in range(0, len(vals), bs):
         chunk = vals[i:i + bs]
         xb = torch.from_numpy(np.stack([c[0] for c in chunk])).to(device)
         mb = torch.from_numpy(np.stack([c[1] for c in chunk])).to(device)
         out = net(xb, mb).cpu().numpy().reshape(len(chunk), -1)[:, :C.W * M.NCH]
-        for j, (_, _, tgt, art, center) in enumerate(chunk):
+        for j, (_, _, tgt, art, center, L) in enumerate(chunk):
             if M.NCH == 1:
                 pred = out[j] * scale + center
             else:   # компоненты -> модуль: ошибка чекпойнта всегда в нТл по F
                 pred = np.sqrt((((out[j].reshape(C.W, M.NCH)
                                   * np.asarray(scale).reshape(1, -1)) + center) ** 2).sum(1))
-            tot += np.abs(pred[art] - tgt[art]).sum()
-            cnt += art.sum()
+            e = float(np.abs(pred[art] - tgt[art]).sum())
+            a = agg.setdefault(L, [0.0, 0.0])
+            a[0] += e
+            a[1] += float(art.sum())
+            tot += e
+            cnt += float(art.sum())
     net.train()
-    return tot / max(cnt, 1)
+    if pooled:                       # прежний критерий: пул по всем точкам
+        return tot / max(cnt, 1)
+    per_L = [t / c for t, c in agg.values() if c > 0]
+    if not per_L:
+        return float("inf")
+    return float(np.exp(np.mean(np.log(np.maximum(per_L, 1e-9)))))
 
 
 def main():
@@ -129,6 +199,17 @@ def main():
     ap.add_argument("--kw", nargs="*", default=[],
                     help="параметры ёмкости, напр. base=48 depth=5")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--val-per-length", type=int, default=0,
+                    help="окон на каждую длину бенчмарка в валидационном "
+                         "наборе (всего 12 x это число). 0 — взять значение "
+                         f"архитектуры либо общее ({VAL_PER_L}). Меньше — "
+                         "быстрее валидация, но момент остановки шумнее")
+    ap.add_argument("--val-compare", action="store_true",
+                    help="диагностика: вести ОБА критерия отбора чекпойнта в "
+                         "одном прогоне — новый (по длинам бенчмарка, "
+                         "геометрическое среднее) и прежний (естественные "
+                         "длины, пул по точкам). Второй чекпойнт пишется рядом "
+                         "с суффиксом _legacy")
     ap.add_argument("--amp", action="store_true",
                     help="обучать в смешанной точности bfloat16 (autocast). "
                          "На тяжёлых архитектурах даёт до 2.7x по времени. "
@@ -177,8 +258,6 @@ def main():
     train = C.load_split("train", code=args.code)
     val = C.load_split("val", code=args.code)
     if args.comp:
-        if args.arch == "csdi":
-            raise SystemExit("csdi на компонентах не поддержан: его вход устроен иначе")
         ctrain = C.load_split_comp("train", code=args.code)
         cval = C.load_split_comp("val", code=args.code)
         train = {y: F for y, F in train.items() if y in ctrain}
@@ -210,8 +289,13 @@ def main():
         return 0.5 * (1 + np.cos(np.pi * min(1.0, prog)))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lam)
 
-    vals = build_valset(val, scale, comps=cval,
-                        n=getattr(M.ARCH[args.arch], 'VAL_N', 96), gmin=GMIN)
+    # набор строится по ДЛИНАМ бенчмарка, поэтому gmin/--long-only к нему не
+    # относятся: длины заданы явно, а не берутся из пула реальных пропусков
+    n_per_L = args.val_per_length or getattr(M.ARCH[args.arch], "VAL_PER_L",
+                                              VAL_PER_L)
+    vals = build_valset(val, scale, comps=cval, n_per_L=n_per_L)
+    vals_leg = (build_valset_legacy(val, scale, comps=cval, gmin=GMIN)
+                if args.val_compare else None)
     os.makedirs(MODELS, exist_ok=True)
     # имя: <арх>[_<станция>][_<сплит>][_xyz].pt — сплит и вход попадают в имя,
     # иначе прогон на другом сплите затёр бы модели основного эксперимента
@@ -234,6 +318,7 @@ def main():
     print("-" * 46)
 
     best, t0, run, nonfin = np.inf, time.time(), 0.0, 0
+    best_leg = [np.inf, 0]
     for step in range(1, args.steps + 1):
         opt.zero_grad(set_to_none=True)
         for _ in range(args.accum):
@@ -260,6 +345,12 @@ def main():
 
         if step % args.every == 0:
             v = validate(net, vals, scale, device)
+            if vals_leg is not None:
+                vl = validate(net, vals_leg, scale, device, pooled=True)
+                if vl < best_leg[0]:
+                    best_leg = [vl, step]
+                    M.save(out[:-3] + "_legacy.pt", net, args.arch, scale, kw,
+                           step, vl)
             print(f"{step:>7}{run/(args.every*args.accum):>10.4f}{v:>11.3f}"
                   f"{sched.get_last_lr()[0]:>10.2e}{time.time()-t0:>8.0f}")
             run = 0.0
@@ -268,6 +359,9 @@ def main():
                 M.save(out, net, args.arch, scale, kw, step, v)
 
     print(f"\nготово. лучший val MAE = {best:.3f} нТл, чекпойнт {out}")
+    if vals_leg is not None:
+        print(f"прежний критерий выбрал бы шаг {best_leg[1]} (его val "
+              f"{best_leg[0]:.3f} нТл пулом по точкам)")
     if nonfin:
         print(f"нефинитных шагов: {nonfin}")
     with open(out.replace(".pt", ".json"), "w", encoding="utf-8") as f:
