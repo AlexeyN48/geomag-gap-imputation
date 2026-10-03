@@ -95,12 +95,27 @@ GRID = {
 # поле seconds), а не по прикидкам. Прежние числа занижали: у ImputeFormer на
 # компонентах выходило 3.0 ч против заявленных 1.4. Для компонентного входа
 # время отличается и указано отдельно, где отличие существенно.
-COST_MIN = {"dlinear": 5, "nbeatsx": 5, "nhits": 6, "tide": 6, "tsmixerx": 6,
-            "segrnn": 7, "unet": 8, "timesnet": 23, "imputeformer": 82,
-            "saits": 90}
-COST_MIN_XYZ = {"imputeformer": 182, "saits": 77, "timesnet": 26, "unet": 10,
-                "segrnn": 10, "tsmixerx": 8, "nhits": 8, "dlinear": 8,
-                "tide": 8, "nbeatsx": 7}
+# Минуты на ОДНО обучение, по размеру ячейки. Измерено на RTX 4060 по всем
+# 50 ячейкам грида (models/comp/grid/*.json, поле seconds), 2026-10-03.
+#
+# Раньше здесь стояло одно число на архитектуру, снятое с ВЫБРАННОЙ
+# конфигурации, а грид выбирал в том числе и по дешевизне. Из-за этого
+# оценки порций занижались систематически: у TimesNet большой размер
+# дороже среднего в 2.5 раза, у ImputeFormer в 2.9. Теперь по размерам.
+COST_BY_SIZE = {
+    "imputeformer": {"S": 62, "M": 82, "L": 234},
+    "timesnet": {"S": 21, "M": 48, "L": 122},
+    "saits": {"S": 72, "M": 88, "L": 92},
+    "unet": {"S": 7, "M": 8, "L": 9},
+    "segrnn": {"S": 7, "M": 7, "L": 6},
+    "tide": {"S": 6, "M": 6, "L": 7},
+    "nbeatsx": {"S": 5, "M": 6, "L": 5},
+    "nhits": {"S": 6, "M": 6, "L": 6},
+    "tsmixerx": {"S": 5, "M": 6, "L": 6},
+    "dlinear": {"S": 5, "M": 5, "L": 5},
+}
+# Для совместимости: среднее по размерам. Пользоваться стоит COST_BY_SIZE.
+COST_MIN = {a: round(sum(d.values()) / len(d)) for a, d in COST_BY_SIZE.items()}
 
 # существующие чекпойнты, совпадающие с ячейкой грида (проверяется по json)
 # Переиспользование готовых чекпойнтов вместо обучения ячейки. На ТЕКУЩЕМ
@@ -258,14 +273,35 @@ def _sh(args):
 
 
 def _cells(arch):
-    return sorted(f[:-5] for f in os.listdir(GRID_DIR)
-                  if f.startswith(arch + "__") and f.endswith(".json"))
+    """Ячейки архитектуры, БАЗОВАЯ ПЕРВОЙ.
+
+    Порядок важен: парные доверительные интервалы считаются против базовой
+    ячейки (lr 1e-3, M), и её дамп должен быть готов раньше остальных. При
+    простой сортировке по алфавиту lr0.0003 оказывается впереди lr0.001, и
+    расчёт падал на отсутствии базового дампа. На прежнем сплите этого не
+    случалось: там базовая конфигурация совпадала с моделью основного
+    эксперимента, и её дамп уже лежал под именем архитектуры."""
+    cells = sorted(f[:-5] for f in os.listdir(GRID_DIR)
+                   if f.startswith(arch + "__") and f.endswith(".json"))
+    base = base_cell(arch)
+    return ([base] + [c for c in cells if c != base]) if base in cells else cells
+
+
+def base_cell(arch):
+    """Ячейка отсчёта: lr 1e-3 при среднем размере, то есть дефолт
+    конструктора. Против неё считаются парные интервалы всех остальных."""
+    return cell_name(arch, 1e-3, "M")
 
 
 def _dump_name(arch, cell):
-    """Имя метода в data/: базовая ячейка (lr 1e-3, M) — это сам arch, её дамп
-    и метрики уже есть под именем arch; остальные — под именем ячейки."""
-    return arch if cell == cell_name(arch, 1e-3, "M") else cell
+    """Имя метода в data/ — ВСЕГДА имя ячейки.
+
+    Раньше базовая ячейка переименовывалась в имя архитектуры: на прежнем
+    сплите её дамп и метрики уже существовали под этим именем от основного
+    эксперимента, и грид их переиспользовал. На своём сплите таких файлов нет,
+    а подмена давала расхождение между тем, под каким именем файл создаётся, и
+    тем, под каким его потом ищут. Проще считать базу обычной ячейкой."""
+    return cell
 
 
 def _copy_dump(src, dst, method):
@@ -311,7 +347,8 @@ def _cell_dump(arch, cell):
         print(f"    дамп взят у {src_name}", flush=True)
         return dst
     t0 = time.time()
-    _sh([os.path.join(HERE, "bench_run.py"), "--method", cell, "--split", "val", "--n", "1024",
+    _sh([os.path.join(HERE, "bench_run.py"), "--method", _dump_name(arch, cell),
+         "--split", "val", "--n", "1024",
          "--ckpt", os.path.join(GRID_DIR, cell + ".pt")])
     print(f"    прогон на val {time.time() - t0:.0f} с", flush=True)
     return dst
@@ -322,12 +359,23 @@ def _cell_metrics(arch, cell):
     считает, если нет. У базовой ячейки метрики уже есть под именем arch."""
     name = _dump_name(arch, cell)
     mpath = os.path.join(DATA, f"metrics_{name}_{SET}.csv")
-    if name == arch:
+    if cell == base_cell(arch):
+        # Базовая ячейка. Прежде код просто возвращал путь, считая, что метрики
+        # уже посчитаны под именем архитектуры — так было на сплите, где
+        # базовая конфигурация совпадала с моделью основного эксперимента.
+        # На своём сплите грид считает их сам. Парного файла здесь нет по
+        # определению: сравнивать базу с собой незачем.
+        if not os.path.exists(mpath):
+            _sh([os.path.join(HERE, "bench_metrics.py"), "--pred",
+                 f"dump_{name}_{SET}.npz", "--no-fig"])
         return mpath, None
-    ppath = os.path.join(DATA, f"metrics_{name}_vs_{arch}_{SET}.csv")
+    bn = base_cell(arch)
+    ppath = os.path.join(DATA, f"metrics_{name}_vs_{bn}_{SET}.csv")
     if not (os.path.exists(mpath) and os.path.exists(ppath)):
+        # База нужна как файл: без неё bench_metrics падает на --base
+        _cell_dump(arch, bn)
         _sh([os.path.join(HERE, "bench_metrics.py"), "--pred", f"dump_{name}_{SET}.npz",
-             "--base", f"dump_{arch}_{SET}.npz", "--no-fig"])
+             "--base", f"dump_{bn}_{SET}.npz", "--no-fig"])
     return mpath, ppath
 
 
@@ -367,10 +415,10 @@ def select():
     import csv
     rows, chosen = [], {}
     for arch in GRID:
-        base_cell = cell_name(arch, 1e-3, "M")
+        bcell = base_cell(arch)
         cells = _cells(arch)
-        if base_cell not in cells:
-            print(f"{arch}: нет базовой ячейки {base_cell} — пропуск", flush=True)
+        if bcell not in cells:
+            print(f"{arch}: нет базовой ячейки {bcell} — пропуск", flush=True)
             continue
         print(f"\n[{arch}]", flush=True)
         _adopt_old_best(arch)
@@ -383,11 +431,11 @@ def select():
             bad = _worse_somewhere(ppath) if ppath else []
             bv = float(json.load(open(os.path.join(GRID_DIR, cell + ".json"), encoding="utf-8"))["best_val"])
             info[cell] = (lm, bad, bv, n)
-        base_lm = info[base_cell][0]
+        base_lm = info[bcell][0]
         ok = {c: v for c, v in info.items() if not v[1]}
         win = min(ok, key=lambda c: ok[c][0])
         if info[win][0] >= base_lm:
-            win = base_cell
+            win = bcell
         chosen[arch] = win
         for cell in cells:
             lm, bad, bv, n = info[cell]
@@ -403,7 +451,7 @@ def select():
         _copy_dump(os.path.join(DATA, f"dump_{_dump_name(arch, win)}_{SET}.npz"),
                    os.path.join(DATA, f"dump_{arch}_best_{SET}.npz"), f"{arch}_best")
         _sh([os.path.join(HERE, "bench_metrics.py"), "--pred", f"dump_{arch}_best_{SET}.npz",
-             "--base", f"dump_{arch}_{SET}.npz"])
+             "--base", f"dump_{bcell}_{SET}.npz"])
     with open(os.path.join(MODELS, "grid_selection.csv"), "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["arch", "cell", "best_val_96", "logmean_mae_1024", "gain_vs_base_pct",

@@ -1,0 +1,26 @@
+{
+ "arch": "segrnn",
+ "params": 32706,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.003,
+ "best_val": 6.218767458975796,
+ "scale": [
+  26.40625
+ ],
+ "channels": 1,
+ "comp": false,
+ "kw": {
+  "d_model": 64
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "ARS",
+ "gap_pool_code": "ARS",
+ "cfg": null,
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 440
+}
