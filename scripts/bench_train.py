@@ -317,7 +317,7 @@ def main():
     print(f"{'шаг':>7}{'train':>10}{'val, нТл':>11}{'lr':>10}{'сек':>8}")
     print("-" * 46)
 
-    best, t0, run, nonfin = np.inf, time.time(), 0.0, 0
+    best, best_step, t0, run, nonfin = np.inf, 0, time.time(), 0.0, 0
     best_leg = [np.inf, 0]
     for step in range(1, args.steps + 1):
         opt.zero_grad(set_to_none=True)
@@ -355,15 +355,28 @@ def main():
                   f"{sched.get_last_lr()[0]:>10.2e}{time.time()-t0:>8.0f}")
             run = 0.0
             if v < best:
-                best = v
+                best, best_step = v, step
                 M.save(out, net, args.arch, scale, kw, step, v)
 
-    print(f"\nготово. лучший val MAE = {best:.3f} нТл, чекпойнт {out}")
+    print(f"\nготово. лучший val MAE = {best:.3f} нТл, чекпойнт {out} (шаг {best_step})")
     if vals_leg is not None:
         print(f"прежний критерий выбрал бы шаг {best_leg[1]} (его val "
               f"{best_leg[0]:.3f} нТл пулом по точкам)")
     if nonfin:
         print(f"нефинитных шагов: {nonfin}")
+    # вариант ёмкости нигде не хранился: у размера M список kw пуст (это
+    # дефолты конструктора), у S и L в нём лежит knob сетки. По файлу модели
+    # понять, какая ячейка грида выиграла, было нельзя — восстанавливаем.
+    size = None
+    try:
+        import bench_grid as G
+        if args.arch in G.GRID:
+            for sz in G.SIZES:
+                if kw == G.kw_for(args.arch, sz):
+                    size = sz
+                    break
+    except Exception:
+        pass
     with open(out.replace(".pt", ".json"), "w", encoding="utf-8") as f:
         json.dump(dict(arch=args.arch, params=npar, steps=args.steps,
                        batch=args.batch, accum=args.accum, lr=args.lr,
@@ -372,6 +385,7 @@ def main():
                        kw=kw, patch=args.patch, window=int(C.W), long_only=args.long_only,
                        code=args.code, gap_pool_code=args.gap_pool_code, cfg=args.cfg,
                        amp="bfloat16" if args.amp else "float32", seed=int(C.SEED),
+                       size=size, best_step=int(best_step),
                        seconds=round(time.time() - t0)), f, ensure_ascii=False, indent=1)
 
 
