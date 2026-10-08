@@ -1,0 +1,31 @@
+{
+ "arch": "saits",
+ "params": 2167946,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.001,
+ "best_val": 3.8355282185219886,
+ "scale": [
+  9.93226146697998,
+  9.488494873046875,
+  5.333885192871094
+ ],
+ "channels": 3,
+ "comp": true,
+ "kw": {
+  "d_model": 256,
+  "d_ffn": 512
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "KAK",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/comp/saits_best.json",
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 5889,
+ "size": "L",
+ "best_step": 11500
+}

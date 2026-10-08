@@ -20,5 +20,7 @@
  "code": "WNG",
  "gap_pool_code": "ARS",
  "cfg": "../models/imputeformer_best.json",
- "seconds": 9764
+ "seconds": 9764,
+ "size": "M",
+ "best_step": 6500
 }

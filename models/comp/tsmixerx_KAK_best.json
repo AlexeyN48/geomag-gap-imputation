@@ -1,0 +1,28 @@
+{
+ "arch": "tsmixerx",
+ "params": 12453415,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.0003,
+ "best_val": 6.447848404381192,
+ "scale": [
+  38.0859375
+ ],
+ "channels": 1,
+ "comp": false,
+ "kw": {
+  "ff_dim": 32
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "KAK",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/comp/tsmixerx_best.json",
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 346,
+ "size": "S",
+ "best_step": 10500
+}

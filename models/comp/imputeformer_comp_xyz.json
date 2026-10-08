@@ -20,5 +20,7 @@
  "code": "ARS",
  "gap_pool_code": "ARS",
  "cfg": "../models/imputeformer_best.json",
- "seconds": 10919
+ "seconds": 10919,
+ "size": "M",
+ "best_step": 10500
 }

@@ -22,5 +22,7 @@
  "cfg": null,
  "amp": "float32",
  "seed": 1234,
- "seconds": 343
+ "seconds": 343,
+ "size": "S",
+ "best_step": 7500
 }

@@ -1,0 +1,26 @@
+{
+ "arch": "unet",
+ "params": 4282437,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.001,
+ "best_val": 3.5808702496050886,
+ "scale": [
+  33.078125
+ ],
+ "channels": 1,
+ "comp": false,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "WNG",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/comp/unet_best.json",
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 475,
+ "size": "M",
+ "best_step": 11000
+}

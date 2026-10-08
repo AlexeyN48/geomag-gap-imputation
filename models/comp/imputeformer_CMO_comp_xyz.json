@@ -20,5 +20,7 @@
  "code": "CMO",
  "gap_pool_code": "ARS",
  "cfg": "../models/imputeformer_best.json",
- "seconds": 9560
+ "seconds": 9560,
+ "size": "M",
+ "best_step": 5500
 }

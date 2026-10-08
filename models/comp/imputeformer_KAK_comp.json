@@ -18,5 +18,7 @@
  "code": "KAK",
  "gap_pool_code": "ARS",
  "cfg": "../models/imputeformer_best.json",
- "seconds": 4893
+ "seconds": 4893,
+ "size": "M",
+ "best_step": 11500
 }

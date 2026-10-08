@@ -18,5 +18,7 @@
  "code": "HUA",
  "gap_pool_code": "ARS",
  "cfg": "../models/imputeformer_best.json",
- "seconds": 4903
+ "seconds": 4903,
+ "size": "M",
+ "best_step": 11500
 }

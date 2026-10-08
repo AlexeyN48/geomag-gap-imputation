@@ -1,0 +1,28 @@
+{
+ "arch": "tsmixerx",
+ "params": 12453415,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.0003,
+ "best_val": 15.399943585231785,
+ "scale": [
+  137.982421875
+ ],
+ "channels": 1,
+ "comp": false,
+ "kw": {
+  "ff_dim": 32
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "HUA",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/comp/tsmixerx_best.json",
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 347,
+ "size": "S",
+ "best_step": 12000
+}

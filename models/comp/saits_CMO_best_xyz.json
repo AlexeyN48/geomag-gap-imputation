@@ -1,0 +1,31 @@
+{
+ "arch": "saits",
+ "params": 2167946,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.001,
+ "best_val": 17.819655658012415,
+ "scale": [
+  20.682559967041016,
+  17.93924331665039,
+  15.422514915466309
+ ],
+ "channels": 3,
+ "comp": true,
+ "kw": {
+  "d_model": 256,
+  "d_ffn": 512
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "CMO",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/comp/saits_best.json",
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 5256,
+ "size": "L",
+ "best_step": 10500
+}

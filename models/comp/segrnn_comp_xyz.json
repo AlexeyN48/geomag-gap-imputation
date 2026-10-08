@@ -20,5 +20,7 @@
  "code": "ARS",
  "gap_pool_code": "ARS",
  "cfg": "../models/segrnn_best.json",
- "seconds": 598
+ "seconds": 598,
+ "size": "M",
+ "best_step": 9500
 }
