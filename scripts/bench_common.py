@@ -75,7 +75,23 @@ SPLITS = {
 }
 # «or» вместо значения по умолчанию: пустая переменная (IGF_SPLIT=) —
 # это не выбор сплита, а её отсутствие
-SPLIT_NAME = os.environ.get("IGF_SPLIT") or "f"
+SPLIT_NAME = os.environ.get("IGF_SPLIT") or ""
+if not SPLIT_NAME:
+    # Молчаливого выбора по умолчанию здесь быть не должно. Раньше при
+    # пустой переменной брался сплит "f", и это тихо уводило все пути на
+    # прежнее исследование: в data/ лежит 720 его артефактов, а в models/
+    # 69, имена у них другие (ARS_val вместо ARS_comp_val), так что файлы
+    # НАХОДЯТСЯ и считаются без единой ошибки. Получался правдоподобный
+    # отчёт по чужим данным. Теперь выбор обязателен и делается явно.
+    raise SystemExit("\n".join((
+        "не задан IGF_SPLIT — выбор разбиения по годам обязателен.",
+        "  IGF_SPLIT=comp — текущий эксперимент (валидация 2023, "
+        "тесты 2021 и 2024)",
+        "  IGF_SPLIT=f    — прежнее разбиение, только для чтения старых "
+        "артефактов",
+        "в PowerShell:  $env:IGF_SPLIT = 'comp'",
+        "в bash:        export IGF_SPLIT=comp",
+    )))
 if SPLIT_NAME not in SPLITS:
     raise SystemExit(f"IGF_SPLIT={SPLIT_NAME}: есть только {', '.join(SPLITS)}")
 SPLIT = SPLITS[SPLIT_NAME]
