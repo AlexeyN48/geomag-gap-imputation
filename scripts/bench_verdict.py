@@ -151,8 +151,8 @@ def arch_side(ma, mb, code, split, lengths):
 
 
 def perm_p(x, y):
-    """Односторонний перестановочный p для положительной ранговой связи:
-    направление записано в протоколе заранее, поэтому тест односторонний."""
+    """Ранговая корреляция и точные перестановочные p для обоих хвостов:
+    p_pos = доля расстановок с ρ не меньше наблюдённого, p_neg — не больше."""
     from scipy.stats import spearmanr
     x, y = np.asarray(x, float), np.asarray(y, float)
     r = float(spearmanr(x, y).statistic)
@@ -162,7 +162,30 @@ def perm_p(x, y):
     else:
         rng = np.random.default_rng(SEED)
         perms = [spearmanr(x, rng.permutation(y)).statistic for _ in range(20000)]
-    return r, float(np.mean(np.array(perms) >= r - 1e-12))
+    perms = np.array(perms)
+    return r, float(np.mean(perms >= r - 1e-12)), float(np.mean(perms <= r + 1e-12))
+
+
+OK, NO, ND = "выполнено", "НЕ выполнено", "не доказано"
+
+
+def corr_outcome(r, p_pos, p_neg):
+    """Три исхода для корреляций (протокол, «Операционные определения»):
+    значимо в предсказанную сторону — выполнено; значимо в обратную —
+    НЕ выполнено; незначимо — не доказано (точек не хватило, а не «связи нет»)."""
+    if r > 0 and p_pos < ALPHA:
+        return OK
+    if r < 0 and p_neg < ALPHA:
+        return NO
+    return ND
+
+
+def merge(outs):
+    """Свод по частям утверждения: хоть одна часть опровергнута — опровергнуто;
+    все выполнены — выполнено; иначе не доказано."""
+    if NO in outs:
+        return NO
+    return OK if all(o == OK for o in outs) else ND
 
 
 def gm(v):
@@ -195,8 +218,9 @@ def U2(split):
     bad = []
     for a in FIN:
         for L in SHORT:
-            if paired(model(a, "ARS"), "pchip", "ARS", split, L)[3] == 1:
-                bad.append(f"{a} значимо точнее PCHIP на {L}")
+            # протокол: опровергнуто, если сеть НЕ УСТУПАЕТ PCHIP значимо
+            if paired("pchip", model(a, "ARS"), "ARS", split, L)[3] != 1:
+                bad.append(f"{a} не уступает PCHIP значимо на {L}")
         for L in FROM480:
             if paired(model(a, "ARS"), "pchip", "ARS", split, L)[3] != 1:
                 bad.append(f"{a} не значимо точнее PCHIP на {L}")
@@ -221,14 +245,14 @@ def U3(split):
 def U4(split):
     R, X = D.regimes("ARS", split, "Fbest"), D.regimes("ARS", split, "XYZbest")
     rk = R["rank"]["все длины"]
-    res, ok = [], True
+    res, outs = [], []
     for g in ("120–1000 мин", ">1000 мин"):
         x = [rk[f"{a}_best"] for a in ALL]
         y = [X["mae_gm"][f"{a}_best_xyz"][g] / R["mae_gm"][f"{a}_best"][g] - 1 for a in ALL]
-        r, p = perm_p(x, y)
-        ok &= (r > 0 and p < ALPHA)
-        res.append(f"{g}: ρ={r:+.2f}, p={p:.3f}")
-    return ok, "; ".join(res)
+        r, pp, pn = perm_p(x, y)
+        outs.append(corr_outcome(r, pp, pn))
+        res.append(f"{g}: ρ={r:+.2f}, p={pp:.3f}")
+    return merge(outs), "; ".join(res)
 
 
 def U5(split):
@@ -306,9 +330,9 @@ def nse_station(c, split, rng=None):
 
 def U10(split):
     nse = {c: nse_station(c, split) for c in CODES}
-    r, p = perm_p([REG_SHARE[c] for c in CODES], [nse[c] for c in CODES])
-    return (r > 0 and p < ALPHA), (f"NSE {', '.join(f'{c} {v:+.2f}' for c, v in nse.items())}; "
-                                   f"ρ={r:+.2f}, p={p:.3f}"), nse
+    r, pp, pn = perm_p([REG_SHARE[c] for c in CODES], [nse[c] for c in CODES])
+    return corr_outcome(r, pp, pn), (f"NSE {', '.join(f'{c} {v:+.2f}' for c, v in nse.items())}; "
+                                     f"ρ={r:+.2f}, p={pp:.3f}"), nse
 
 
 def U12(split):
@@ -335,9 +359,11 @@ def U13(split):
             tr = [_stat(np.ones_like(windows(model(a, "ARS"), c, split, L)["n"]), windows(model(a, "ARS"), c, split, L), "mae") for L in ALL_L]
             g.append(1 - gm(loc) / gm(tr))
         gain[c] = float(np.median(g))
-    r, p = perm_p([DELTA_I[c] for c in ST], [gain[c] for c in ST])
+    r, pp, pn = perm_p([DELTA_I[c] for c in ST], [gain[c] for c in ST])
     no_gain = sum(not v for v in sig.values())
-    return (no_gain < 3 and r > 0 and p < ALPHA), (
+    out = NO if no_gain >= 3 else corr_outcome(r, pp, pn)
+    p = pp
+    return out, (
         f"выигрыш обучения на месте {', '.join(f'{c} {gain[c]:+.3f}' for c in ST)}; "
         f"значим на {sum(sig.values())} из 5; связь с разницей крутизны: ρ={r:+.2f}, p={p:.3f}")
 
@@ -382,7 +408,7 @@ def U14(split):
 
 def U15(split):
     codes = [c for c in CODES if not (c == "CMO" and split == "test")]   # исключение CMO 2021
-    res, ok = [], True
+    res, outs = [], []
     for g in ("120–1000 мин", ">1000 мин"):
         y = []
         for c in codes:
@@ -390,10 +416,10 @@ def U15(split):
             R, X = D.regimes(c, split, tf), D.regimes(c, split, tx)
             y.append(np.mean([X["mae_gm"][model(a, c, "_xyz")][g] / R["mae_gm"][model(a, c)][g] - 1
                               for a in FIN]))
-        r, p = perm_p([AXIS_DOM[c] for c in codes], y)
-        ok &= (r > 0 and p < ALPHA)
-        res.append(f"{g}: ρ={r:+.2f}, p={p:.3f} (n={len(codes)})")
-    return ok, "; ".join(res)
+        r, pp, pn = perm_p([AXIS_DOM[c] for c in codes], y)
+        outs.append(corr_outcome(r, pp, pn))
+        res.append(f"{g}: ρ={r:+.2f}, p={pp:.3f} (n={len(codes)})")
+    return merge(outs), "; ".join(res)
 
 
 YEAR_CLAIMS = [("У1", U1), ("У2", U2), ("У3", U3), ("У4", U4), ("У5", U5),
@@ -409,7 +435,7 @@ def run_year(split, only=None):
             continue
         try:
             ok, msg = fn(split)
-            rows.append((name, "выполнено" if ok else "НЕ выполнено", msg))
+            rows.append((name, ok if isinstance(ok, str) else (OK if ok else NO), msg))
         except FileNotFoundError as e:
             rows.append((name, "нет данных", os.path.basename(str(e))))
         print(f"  {rows[-1][0]:4} {rows[-1][1]:13} {rows[-1][2]}", flush=True)
@@ -419,7 +445,7 @@ def run_year(split, only=None):
         print(f"  У9a  {rows[-1][1]:13} {msg}", flush=True)
     if not only or "У10" in only:
         ok, msg, _ = U10(split)
-        rows.append(("У10", "выполнено" if ok else "НЕ выполнено", msg))
+        rows.append(("У10", ok, msg))
         print(f"  У10  {rows[-1][1]:13} {msg}", flush=True)
     return rows
 
@@ -451,11 +477,14 @@ def combine():
           f"{', '.join(f'{c} {drop[c]:+.2f}{'*' if sig[c] else ''}' for c in CODES)} (* значимо)")
     print("\nИТОГ ПО РАЗДЕЛУ 5 (подтверждено только если выполнено в обоих годах):")
     names = sorted(set(out["test"]) | set(out["test_hard"]), key=lambda s: (len(s), s))
-    tally = {"подтверждено": 0, "зависит от обстановки": 0, "опровергнуто": 0}
+    tally = {"подтверждено": 0, "зависит от обстановки": 0, "не доказано": 0,
+             "опровергнуто": 0}
     for n in names:
         a, b = out["test"].get(n), out["test_hard"].get(n)
-        v = ("подтверждено" if a == b == "выполнено" else
-             "опровергнуто" if a == b == "НЕ выполнено" else "зависит от обстановки")
+        # протокол, раздел 5: «не доказано» хотя бы в одном году -> не доказано
+        v = ("не доказано" if ND in (a, b) else
+             "подтверждено" if a == b == OK else
+             "опровергнуто" if a == b == NO else "зависит от обстановки")
         tally[v] += 1
         print(f"  {n:4} 2021: {a:13} 2024: {b:13} -> {v}")
     print(f"  У9b  межгодовое: {'подтверждено' if u9b else 'опровергнуто'}")
