@@ -1,0 +1,269 @@
+method,kind,group,value
+unet_KAK_best_xyz,MAE,5,1.03206
+unet_KAK_best_xyz,Score,5,-4.20202
+unet_KAK_best_xyz,MAE,15,0.919953
+unet_KAK_best_xyz,Score,15,-1.1583
+unet_KAK_best_xyz,MAE,60,1.31788
+unet_KAK_best_xyz,Score,60,-0.119548
+unet_KAK_best_xyz,MAE,120,1.86321
+unet_KAK_best_xyz,Score,120,0.0848827
+unet_KAK_best_xyz,MAE,240,2.69118
+unet_KAK_best_xyz,Score,240,0.251916
+unet_KAK_best_xyz,MAE,480,3.45689
+unet_KAK_best_xyz,Score,480,0.462419
+unet_KAK_best_xyz,MAE,720,3.89993
+unet_KAK_best_xyz,Score,720,0.510285
+unet_KAK_best_xyz,MAE,1000,4.25039
+unet_KAK_best_xyz,Score,1000,0.501866
+unet_KAK_best_xyz,MAE,1440,4.96686
+unet_KAK_best_xyz,Score,1440,0.499681
+unet_KAK_best_xyz,MAE,2160,5.02939
+unet_KAK_best_xyz,Score,2160,0.460951
+unet_KAK_best_xyz,MAE,2880,5.33734
+unet_KAK_best_xyz,Score,2880,0.472409
+unet_KAK_best_xyz,MAE,4320,5.78402
+unet_KAK_best_xyz,Score,4320,0.464161
+unet_KAK_best_xyz,MAE_gm,все длины,2.84166
+unet_KAK_best_xyz,Score_gm,все длины,0.184874
+unet_KAK_best_xyz,MAE_gm,≤120 мин,1.23567
+unet_KAK_best_xyz,Score_gm,≤120 мин,-0.841624
+unet_KAK_best_xyz,MAE_gm,120–1000 мин,3.52394
+unet_KAK_best_xyz,Score_gm,120–1000 мин,0.440344
+unet_KAK_best_xyz,MAE_gm,>1000 мин,5.26972
+unet_KAK_best_xyz,Score_gm,>1000 мин,0.474525
+saits_KAK_best_xyz,MAE,5,0.883463
+saits_KAK_best_xyz,Score,5,-3.45304
+saits_KAK_best_xyz,MAE,15,1.09688
+saits_KAK_best_xyz,Score,15,-1.57339
+saits_KAK_best_xyz,MAE,60,1.52484
+saits_KAK_best_xyz,Score,60,-0.295361
+saits_KAK_best_xyz,MAE,120,2.08516
+saits_KAK_best_xyz,Score,120,-0.0241261
+saits_KAK_best_xyz,MAE,240,2.84696
+saits_KAK_best_xyz,Score,240,0.208613
+saits_KAK_best_xyz,MAE,480,3.57759
+saits_KAK_best_xyz,Score,480,0.443648
+saits_KAK_best_xyz,MAE,720,3.93307
+saits_KAK_best_xyz,Score,720,0.506124
+saits_KAK_best_xyz,MAE,1000,4.23106
+saits_KAK_best_xyz,Score,1000,0.50413
+saits_KAK_best_xyz,MAE,1440,4.84937
+saits_KAK_best_xyz,Score,1440,0.511516
+saits_KAK_best_xyz,MAE,2160,4.92465
+saits_KAK_best_xyz,Score,2160,0.472177
+saits_KAK_best_xyz,MAE,2880,5.24266
+saits_KAK_best_xyz,Score,2880,0.481768
+saits_KAK_best_xyz,MAE,4320,5.72031
+saits_KAK_best_xyz,Score,4320,0.470064
+saits_KAK_best_xyz,MAE_gm,все длины,2.91345
+saits_KAK_best_xyz,Score_gm,все длины,0.164282
+saits_KAK_best_xyz,MAE_gm,≤120 мин,1.32488
+saits_KAK_best_xyz,Score_gm,≤120 мин,-0.974589
+saits_KAK_best_xyz,MAE_gm,120–1000 мин,3.60818
+saits_KAK_best_xyz,Score_gm,120–1000 мин,0.426965
+saits_KAK_best_xyz,MAE_gm,>1000 мин,5.17318
+saits_KAK_best_xyz,Score_gm,>1000 мин,0.484152
+timesnet_KAK_best_xyz,MAE,5,1.20496
+timesnet_KAK_best_xyz,Score,5,-5.07352
+timesnet_KAK_best_xyz,MAE,15,1.01098
+timesnet_KAK_best_xyz,Score,15,-1.37187
+timesnet_KAK_best_xyz,MAE,60,1.48572
+timesnet_KAK_best_xyz,Score,60,-0.262131
+timesnet_KAK_best_xyz,MAE,120,2.5543
+timesnet_KAK_best_xyz,Score,120,-0.254548
+timesnet_KAK_best_xyz,MAE,240,4.02642
+timesnet_KAK_best_xyz,Score,240,-0.119249
+timesnet_KAK_best_xyz,MAE,480,4.89285
+timesnet_KAK_best_xyz,Score,480,0.239112
+timesnet_KAK_best_xyz,MAE,720,4.92008
+timesnet_KAK_best_xyz,Score,720,0.382185
+timesnet_KAK_best_xyz,MAE,1000,5.13996
+timesnet_KAK_best_xyz,Score,1000,0.39761
+timesnet_KAK_best_xyz,MAE,1440,5.55439
+timesnet_KAK_best_xyz,Score,1440,0.440498
+timesnet_KAK_best_xyz,MAE,2160,5.4775
+timesnet_KAK_best_xyz,Score,2160,0.412922
+timesnet_KAK_best_xyz,MAE,2880,5.70049
+timesnet_KAK_best_xyz,Score,2880,0.436512
+timesnet_KAK_best_xyz,MAE,4320,6.23279
+timesnet_KAK_best_xyz,Score,4320,0.422587
+timesnet_KAK_best_xyz,MAE_gm,все длины,3.41203
+timesnet_KAK_best_xyz,Score_gm,все длины,0.0212661
+timesnet_KAK_best_xyz,MAE_gm,≤120 мин,1.46633
+timesnet_KAK_best_xyz,Score_gm,≤120 мин,-1.1854
+timesnet_KAK_best_xyz,MAE_gm,120–1000 мин,4.72447
+timesnet_KAK_best_xyz,Score_gm,120–1000 мин,0.249681
+timesnet_KAK_best_xyz,MAE_gm,>1000 мин,5.73394
+timesnet_KAK_best_xyz,Score_gm,>1000 мин,0.428235
+tsmixerx_KAK_best_xyz,MAE,5,3.72606
+tsmixerx_KAK_best_xyz,Score,5,-17.781
+tsmixerx_KAK_best_xyz,MAE,15,3.68611
+tsmixerx_KAK_best_xyz,Score,15,-7.64799
+tsmixerx_KAK_best_xyz,MAE,60,3.99953
+tsmixerx_KAK_best_xyz,Score,60,-2.39763
+tsmixerx_KAK_best_xyz,MAE,120,4.27279
+tsmixerx_KAK_best_xyz,Score,120,-1.09858
+tsmixerx_KAK_best_xyz,MAE,240,4.4979
+tsmixerx_KAK_best_xyz,Score,240,-0.250309
+tsmixerx_KAK_best_xyz,MAE,480,4.7854
+tsmixerx_KAK_best_xyz,Score,480,0.255821
+tsmixerx_KAK_best_xyz,MAE,720,4.86738
+tsmixerx_KAK_best_xyz,Score,720,0.388803
+tsmixerx_KAK_best_xyz,MAE,1000,5.1176
+tsmixerx_KAK_best_xyz,Score,1000,0.400231
+tsmixerx_KAK_best_xyz,MAE,1440,5.50398
+tsmixerx_KAK_best_xyz,Score,1440,0.445576
+tsmixerx_KAK_best_xyz,MAE,2160,5.47834
+tsmixerx_KAK_best_xyz,Score,2160,0.412832
+tsmixerx_KAK_best_xyz,MAE,2880,5.70235
+tsmixerx_KAK_best_xyz,Score,2880,0.436329
+tsmixerx_KAK_best_xyz,MAE,4320,6.14527
+tsmixerx_KAK_best_xyz,Score,4320,0.430694
+tsmixerx_KAK_best_xyz,MAE_gm,все длины,4.75312
+tsmixerx_KAK_best_xyz,Score_gm,все длины,-0.363424
+tsmixerx_KAK_best_xyz,MAE_gm,≤120 мин,3.91412
+tsmixerx_KAK_best_xyz,Score_gm,≤120 мин,-4.83356
+tsmixerx_KAK_best_xyz,MAE_gm,120–1000 мин,4.81196
+tsmixerx_KAK_best_xyz,Score_gm,120–1000 мин,0.235786
+tsmixerx_KAK_best_xyz,MAE_gm,>1000 мин,5.70138
+tsmixerx_KAK_best_xyz,Score_gm,>1000 мин,0.431482
+imputeformer_KAK_comp_xyz,MAE,5,1.7259
+imputeformer_KAK_comp_xyz,Score,5,-7.6993
+imputeformer_KAK_comp_xyz,MAE,15,3.32266
+imputeformer_KAK_comp_xyz,Score,15,-6.79529
+imputeformer_KAK_comp_xyz,MAE,60,4.22879
+imputeformer_KAK_comp_xyz,Score,60,-2.5924
+imputeformer_KAK_comp_xyz,MAE,120,4.47255
+imputeformer_KAK_comp_xyz,Score,120,-1.19669
+imputeformer_KAK_comp_xyz,MAE,240,4.61082
+imputeformer_KAK_comp_xyz,Score,240,-0.281696
+imputeformer_KAK_comp_xyz,MAE,480,4.78229
+imputeformer_KAK_comp_xyz,Score,480,0.256305
+imputeformer_KAK_comp_xyz,MAE,720,4.81461
+imputeformer_KAK_comp_xyz,Score,720,0.395429
+imputeformer_KAK_comp_xyz,MAE,1000,5.00898
+imputeformer_KAK_comp_xyz,Score,1000,0.41296
+imputeformer_KAK_comp_xyz,MAE,1440,5.42385
+imputeformer_KAK_comp_xyz,Score,1440,0.453648
+imputeformer_KAK_comp_xyz,MAE,2160,5.41789
+imputeformer_KAK_comp_xyz,Score,2160,0.419311
+imputeformer_KAK_comp_xyz,MAE,2880,5.62527
+imputeformer_KAK_comp_xyz,Score,2880,0.443947
+imputeformer_KAK_comp_xyz,MAE,4320,6.04784
+imputeformer_KAK_comp_xyz,Score,4320,0.43972
+imputeformer_KAK_comp_xyz,MAE_gm,все длины,4.43343
+imputeformer_KAK_comp_xyz,Score_gm,все длины,-0.271721
+imputeformer_KAK_comp_xyz,MAE_gm,≤120 мин,3.22714
+imputeformer_KAK_comp_xyz,Score_gm,≤120 мин,-3.8097
+imputeformer_KAK_comp_xyz,MAE_gm,120–1000 мин,4.8021
+imputeformer_KAK_comp_xyz,Score_gm,120–1000 мин,0.237353
+imputeformer_KAK_comp_xyz,MAE_gm,>1000 мин,5.62303
+imputeformer_KAK_comp_xyz,Score_gm,>1000 мин,0.439295
+pchip,MAE,5,0.198396
+pchip,Score,5,0
+pchip,MAE,15,0.426239
+pchip,Score,15,0
+pchip,MAE,60,1.17715
+pchip,Score,60,0
+pchip,MAE,120,2.03604
+pchip,Score,120,0
+pchip,MAE,240,3.59743
+pchip,Score,240,0
+pchip,MAE,480,6.43045
+pchip,Score,480,0
+pchip,MAE,720,7.96368
+pchip,Score,720,0
+pchip,MAE,1000,8.53261
+pchip,Score,1000,0
+pchip,MAE,1440,9.92738
+pchip,Score,1440,0
+pchip,MAE,2160,9.33011
+pchip,Score,2160,0
+pchip,MAE,2880,10.1164
+pchip,Score,2880,0
+pchip,MAE,4320,10.7943
+pchip,Score,4320,0
+pchip,MAE_gm,все длины,3.48617
+pchip,Score_gm,все длины,0
+pchip,MAE_gm,≤120 мин,0.670966
+pchip,Score_gm,≤120 мин,0
+pchip,MAE_gm,120–1000 мин,6.29662
+pchip,Score_gm,120–1000 мин,0
+pchip,MAE_gm,>1000 мин,10.0285
+pchip,Score_gm,>1000 мин,0
+linear,MAE,5,0.206113
+linear,Score,5,-0.0389016
+linear,MAE,15,0.455663
+linear,Score,15,-0.0690318
+linear,MAE,60,1.20226
+linear,Score,60,-0.0213293
+linear,MAE,120,2.06873
+linear,Score,120,-0.0160602
+linear,MAE,240,3.81275
+linear,Score,240,-0.0598539
+linear,MAE,480,6.5548
+linear,Score,480,-0.0193381
+linear,MAE,720,7.96817
+linear,Score,720,-0.000563221
+linear,MAE,1000,8.41496
+linear,Score,1000,0.0137884
+linear,MAE,1440,9.90189
+linear,Score,1440,0.00256704
+linear,MAE,2160,9.16456
+linear,Score,2160,0.0177433
+linear,MAE,2880,10.0087
+linear,Score,2880,0.0106524
+linear,MAE,4320,10.6791
+linear,Score,4320,0.0106724
+linear,MAE_gm,все длины,3.53414
+linear,Score_gm,все длины,-0.013761
+linear,MAE_gm,≤120 мин,0.695206
+linear,Score_gm,≤120 мин,-0.036126
+linear,MAE_gm,120–1000 мин,6.39812
+linear,Score_gm,120–1000 мин,-0.0161194
+linear,MAE_gm,>1000 мин,9.92397
+linear,Score_gm,>1000 мин,0.0104234
+unet_KAK_best_xyz,mean_rank,все длины,2.2194
+saits_KAK_best_xyz,mean_rank,все длины,2.4016
+timesnet_KAK_best_xyz,mean_rank,все длины,4.1306
+tsmixerx_KAK_best_xyz,mean_rank,все длины,5.0242
+imputeformer_KAK_comp_xyz,mean_rank,все длины,4.7742
+pchip,mean_rank,все длины,4.6661
+linear,mean_rank,все длины,4.7839
+,friedman_chi2,все длины,1123
+,friedman_p,все длины,2.79e-239
+,nemenyi_CD,все длины,0.3618
+,N_cells,все длины,620
+unet_KAK_best_xyz,mean_rank,≤120 мин,3.1005
+saits_KAK_best_xyz,mean_rank,≤120 мин,3.8038
+timesnet_KAK_best_xyz,mean_rank,≤120 мин,4.3301
+tsmixerx_KAK_best_xyz,mean_rank,≤120 мин,6.6459
+imputeformer_KAK_comp_xyz,mean_rank,≤120 мин,6.3110
+pchip,mean_rank,≤120 мин,1.7273
+linear,mean_rank,≤120 мин,2.0813
+,friedman_chi2,≤120 мин,991.8
+,friedman_p,≤120 мин,5.38e-211
+,nemenyi_CD,≤120 мин,0.6232
+,N_cells,≤120 мин,209
+unet_KAK_best_xyz,mean_rank,120–1000 мин,1.4856
+saits_KAK_best_xyz,mean_rank,120–1000 мин,1.7115
+timesnet_KAK_best_xyz,mean_rank,120–1000 мин,4.1731
+tsmixerx_KAK_best_xyz,mean_rank,120–1000 мин,4.5240
+imputeformer_KAK_comp_xyz,mean_rank,120–1000 мин,4.4375
+pchip,mean_rank,120–1000 мин,5.6971
+linear,mean_rank,120–1000 мин,5.9712
+,friedman_chi2,120–1000 мин,838.9
+,friedman_p,120–1000 мин,6.11e-178
+,nemenyi_CD,120–1000 мин,0.6247
+,N_cells,120–1000 мин,208
+unet_KAK_best_xyz,mean_rank,>1000 мин,2.0640
+saits_KAK_best_xyz,mean_rank,>1000 мин,1.6650
+timesnet_KAK_best_xyz,mean_rank,>1000 мин,3.8818
+tsmixerx_KAK_best_xyz,mean_rank,>1000 мин,3.8670
+imputeformer_KAK_comp_xyz,mean_rank,>1000 мин,3.5369
+pchip,mean_rank,>1000 мин,6.6355
+linear,mean_rank,>1000 мин,6.3498
+,friedman_chi2,>1000 мин,953.2
+,friedman_p,>1000 мин,1.17e-202
+,nemenyi_CD,>1000 мин,0.6323
+,N_cells,>1000 мин,203
