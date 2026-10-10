@@ -316,13 +316,20 @@ def U9_year(split):
 
 def nse_station(c, split, rng=None):
     """NSE станции: медиана по пятёрке среднего NSE по четырём длинным длинам.
-    rng — для бутстрепа: тогда окна пересэмплируются по неделям."""
+    rng — для бутстрепа: тогда окна пересэмплируются по неделям. Набор недель
+    выбирается ОДИН раз на длину и применяется ко всем пяти моделям: они
+    оценены на одних и тех же окнах, и свой набор у каждой модели разорвал бы
+    эту связь и раздул интервал."""
+    ws = {}
+    if rng is not None:
+        for L in LONG:
+            ws[L] = _mult(windows(model(FIN[0], c), c, split, L)["blk"], rng)
     v = []
     for a in FIN:
         per_L = []
         for L in LONG:
             x = windows(model(a, c), c, split, L)
-            w = np.ones_like(x["n"]) if rng is None else _mult(x["blk"], rng)
+            w = np.ones_like(x["n"]) if rng is None else ws[L]
             per_L.append(_stat(w, x, "nse"))
         v.append(np.mean(per_L))
     return float(np.median(v))
