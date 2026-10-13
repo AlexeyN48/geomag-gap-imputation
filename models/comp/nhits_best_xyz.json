@@ -1,0 +1,30 @@
+{
+ "arch": "nhits",
+ "params": 2749620,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.001,
+ "best_val": 5.31589439624612,
+ "scale": [
+  10.675009727478027,
+  13.479135513305664,
+  4.598376274108887
+ ],
+ "channels": 3,
+ "comp": true,
+ "kw": {
+  "mlp": 256
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "ARS",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/comp/nhits_best.json",
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 523,
+ "size": "L",
+ "best_step": 12000
+}

@@ -30,8 +30,6 @@ STYLE = {                       # цвет и подпись закреплен�
     "timesnet": ("#bcbd22", "TimesNet"),
     "saits":    ("#e377c2", "SAITS"),
     "imputeformer": ("#7f7f7f", "ImputeFormer"),
-    "crossformer":  ("#8B0000", "Crossformer"),
-    "csdi":         ("#00868B", "CSDI"),
     "nhits":        ("#ff7f0e", "NHITS"),
     "nbeatsx":      ("#aec7e8", "NBEATSx"),
     "tsmixerx":     ("#c5b0d5", "TSMixerx"),
@@ -39,8 +37,7 @@ STYLE = {                       # цвет и подпись закреплен�
 }
 ORDER = ["mean", "locf", "linear", "pchip", "daily",
          "dlinear", "unet", "segrnn", "timesnet", "saits",
-         "imputeformer", "crossformer", "csdi",
-         "nhits", "nbeatsx", "tsmixerx", "tide"]
+         "imputeformer",          "nhits", "nbeatsx", "tsmixerx", "tide"]
 
 # панель: (ключ метрики, заголовок, подпись оси, опорная линия, лог. шкала)
 PANELS = [
@@ -54,8 +51,7 @@ PANELS = [
 
 
 CORE_METHODS = {"mean", "locf", "linear", "pchip", "daily", "dlinear", "unet",
-                 "segrnn", "timesnet", "saits", "imputeformer", "crossformer", "csdi",
-                 "nhits", "nbeatsx", "tsmixerx", "tide"}
+                 "segrnn", "timesnet", "saits", "imputeformer",                  "nhits", "nbeatsx", "tsmixerx", "tide"}
 
 
 def read_metrics(split):

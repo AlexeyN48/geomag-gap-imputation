@@ -1,0 +1,31 @@
+{
+ "arch": "saits",
+ "params": 2167946,
+ "steps": 12000,
+ "batch": 8,
+ "accum": 2,
+ "lr": 0.001,
+ "best_val": 3.0868770401449996,
+ "scale": [
+  10.675009727478027,
+  13.479135513305664,
+  4.598376274108887
+ ],
+ "channels": 3,
+ "comp": true,
+ "kw": {
+  "d_model": 256,
+  "d_ffn": 512
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "ARS",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/comp/saits_best.json",
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 6393,
+ "size": "L",
+ "best_step": 11500
+}

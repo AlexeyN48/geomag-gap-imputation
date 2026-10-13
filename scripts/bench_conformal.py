@@ -58,12 +58,10 @@ import bench_common as C
 
 DATA = C.DATA
 FIGS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "figures"))
-DEFAULT_METHODS = ["unet_best", "saits_best", "crossformer_best",
-                   "timesnet_best", "imputeformer_best", "pchip"]
+DEFAULT_METHODS = ["unet_best", "saits_best",                    "timesnet_best", "imputeformer_best", "pchip"]
 DEFAULT_CODES = ["ARS", "WNG", "CMO", "KAK", "HUA", "HER"]
 PRETTY = {"unet": "U-Net", "saits": "SAITS", "crossformer": "CrossFormer",
-          "timesnet": "TimesNet", "imputeformer": "ImputeFormer", "csdi": "CSDI",
-          "pchip": "PCHIP", "linear": "Linear", "locf": "LOCF"}
+          "timesnet": "TimesNet", "imputeformer": "ImputeFormer",           "pchip": "PCHIP", "linear": "Linear", "locf": "LOCF"}
 
 
 def name(m):
