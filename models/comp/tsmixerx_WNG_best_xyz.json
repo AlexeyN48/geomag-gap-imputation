@@ -1,0 +1,30 @@
+{
+ "arch": "tsmixerx",
+ "params": 13012065,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.0003,
+ "best_val": 5.236334286051597,
+ "scale": [
+  10.928383827209473,
+  13.788161277770996,
+  5.635038375854492
+ ],
+ "channels": 3,
+ "comp": true,
+ "kw": {
+  "ff_dim": 32
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "WNG",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/comp/tsmixerx_best.json",
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 511,
+ "size": "S",
+ "best_step": 12000
+}

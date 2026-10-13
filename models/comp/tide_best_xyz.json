@@ -1,0 +1,30 @@
+{
+ "arch": "tide",
+ "params": 20541720,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.003,
+ "best_val": 5.724808964801982,
+ "scale": [
+  10.675009727478027,
+  13.479135513305664,
+  4.598376274108887
+ ],
+ "channels": 3,
+ "comp": true,
+ "kw": {
+  "hidden": 128
+ },
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "ARS",
+ "gap_pool_code": "ARS",
+ "cfg": "../models/comp/tide_best.json",
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 445,
+ "size": "S",
+ "best_step": 5500
+}

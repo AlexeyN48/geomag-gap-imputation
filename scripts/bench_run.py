@@ -111,7 +111,7 @@ METHODS = {"mean": fill_mean, "locf": fill_locf, "linear": fill_linear,
 
 
 # ------------------------------------------------------------ прогон
-def resolve(method, ckpt=None):
+def resolve(method, ckpt=None, code=None, split=None, comp_sink=None):
     """Классический метод по имени либо обученная модель по имени чекпойнта.
     Обе ветки возвращают функцию (окно, начало) -> заполненное окно, поэтому
     дальше прогон одинаков и дампы получаются одного формата.
@@ -119,18 +119,52 @@ def resolve(method, ckpt=None):
     method тогда только имя для дампа."""
     if method in METHODS:
         fn = METHODS[method]
-        return (lambda inp, start: fn(inp)), None
+        return (lambda inps, starts, years: [fn(a) for a in inps]), None
     import torch
     import bench_models as BM
-    path = ckpt or os.path.join(os.path.dirname(__file__), "..", "models", f"{method}.pt")
+    path = ckpt or os.path.join(C.MODELS, f"{method}.pt")
     if not os.path.exists(path):
         raise SystemExit(f"нет ни метода, ни чекпойнта «{method}»")
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     net, ck = BM.load(path, dev)
-    return (lambda inp, start: BM.fill(net, inp, start, ck["scale"], dev)), ck
+    if int(ck.get("NCH", 1)) == 1:
+        return (lambda inps, starts, years:
+                BM.fill_many(net, inps, starts, ck["scale"], dev)), ck
+
+    # модель обучена на компонентах: окно и дыра те же (их план построен по F),
+    # но на вход идут X, Y, Z, а наружу — модуль восстановленного вектора.
+    # Годится только там, где F и есть модуль вектора, то есть базисы
+    # вариометра приложены верно; остальные годы отсеяны ещё в comp_ok.
+    comp = {y: C.load_year_comp(y, code=code) for y in C.SPLIT[split]
+            if C.comp_ok(y, code=code)}
+    bad = [y for y in C.SPLIT[split] if y not in comp]
+    if bad:
+        raise SystemExit(f"в наборе {split} компоненты непригодны для годов "
+                         f"{', '.join(map(str, bad))}: базисы вариометра не приложены "
+                         "или устарели, модуль вектора расходится со скаляром")
+
+    def fill_comp(inps, starts, years):
+        ws = []
+        for a, st, y in zip(inps, starts, years):
+            w = comp[y][st:st + C.W].copy()
+            w[~np.isfinite(a)] = np.nan          # те же дыры, что и в F
+            ws.append(w)
+        filled = BM.fill_many(net, ws, starts, ck["scale"], dev)
+        # Наружу уходит модуль восстановленного вектора, и только он идёт в
+        # метрику. Сами каналы по пути выбрасывались, из-за чего предсказанные
+        # X, Y, Z нельзя было нарисовать. Теперь, если попросили сток, они
+        # складываются в него — модуль от этого не меняется ни на бит, он
+        # по-прежнему считается из тех же трёх каналов.
+        if comp_sink is not None:
+            comp_sink["pred"] = [np.asarray(o, np.float32) for o in filled]
+            comp_sink["true"] = [np.asarray(comp[y][st:st + C.W], np.float32)
+                                 for st, y in zip(starts, years)]
+        return [np.sqrt((o ** 2).sum(axis=1)) for o in filled]
+
+    return fill_comp, ck
 
 
-def _build_length_fields(smps, fn, acts, L):
+def _build_length_fields(smps, fn, acts, L, comp_sink=None):
     """tr/pr/act/g0 для одной длины L из списка сэмплов — общая часть между
     обычным прогоном (один код станции) и выровненным (--align-codes)."""
     if not smps:
@@ -141,10 +175,13 @@ def _build_length_fields(smps, fn, acts, L):
     pr = np.full((n, span), np.nan, np.float32)
     act = np.zeros(n, np.float32)
     g0 = np.zeros(n, np.int32)
+    w0 = np.zeros(n, np.int32)      # старт окна в годовом ряду
     blk = np.zeros(n, np.int32)
     errs = []
+    preds = fn([s["input"] for s in smps], [s["start"] for s in smps],
+               [s.get("year") for s in smps])
     for i, s in enumerate(smps):
-        pred = fn(s["input"], s["start"])
+        pred = preds[i]
         a = int(s["pos"][0])
         lo, hi = a - C.MARGIN, a + L + C.MARGIN
         clo, chi = max(0, lo), min(C.W, hi)
@@ -154,31 +191,60 @@ def _build_length_fields(smps, fn, acts, L):
         mk = s["mask_art"]
         errs.append(np.abs(pred[mk] - s["target"][mk]).mean())
         st = s["start"]
-        act[i] = acts[s["year"]][st:st + C.W].mean()
+        # Метка возмущённости окна. acts — готовые значения по СТАРТАМ окна
+        # (C.window_activity), а не поминутный ряд: усреднять поминутный
+        # скользящий индекс по окну нельзя, его рамка вылезает за края окна
+        # на 12 часов в каждую сторону и метка описывает соседние полсуток.
+        act[i] = acts[s["year"]][st]
         g0[i] = a
+        w0[i] = st
         # блок для блочного бутстрэпа (bench_metrics): год и календарная
         # неделя, в которую попадает НАЧАЛО дыры. Окна в дампе перекрываются
         # (на длинных дырах каждая минута года лежит в ~8 дырах), поэтому
         # ресэмплировать по окнам нельзя — только неделями целиком.
         blk[i] = int(s["year"]) * 100 + (st + a) // C.BLOCK
-    return dict(true=tr, pred=pr, act=act, gap0=g0, block=blk), float(np.mean(errs))
+    fields = dict(true=tr, pred=pr, act=act, gap0=g0, block=blk, win0=w0)
+    # Компонентные панели — тот же вырез окна, что у модуля, но по трём
+    # каналам. Хранятся только когда просили: на полном бенчмарке это +218 МБ
+    # на дамп ради трёх окон, которые нужны рисунку.
+    if comp_sink and comp_sink.get("pred"):
+        nch = comp_sink["pred"][0].shape[1]
+        trc = np.full((n, span, nch), np.nan, np.float32)
+        prc = np.full((n, span, nch), np.nan, np.float32)
+        for i, s_ in enumerate(smps):
+            a_ = int(s_["pos"][0])
+            lo, hi = a_ - C.MARGIN, a_ + L + C.MARGIN
+            clo, chi = max(0, lo), min(C.W, hi)
+            d0 = clo - lo
+            trc[i, d0:d0 + chi - clo] = comp_sink["true"][i][clo:chi]
+            prc[i, d0:d0 + chi - clo] = comp_sink["pred"][i][clo:chi]
+        fields["trueXYZ"] = trc
+        fields["predXYZ"] = prc
+    return fields, float(np.mean(errs))
+
+
+def _fields_to_npz(fields_by_L):
+    """Поля всех длин в плоский словарь для npz. Одна точка на оба пути
+    сохранения: иначе новое поле (как компонентные панели) приходится
+    добавлять дважды и в одном из путей о нём забывают."""
+    out = {}
+    for L, fields in fields_by_L.items():
+        for key in ("true", "pred", "act", "gap0", "win0", "block",
+                    "trueXYZ", "predXYZ"):
+            if key in fields:
+                out[f"L{L}_{key}"] = fields[key]
+    return out
 
 
 def _save_dump(args, code, lengths, fields_by_L):
-    out = {}
-    for L, fields in fields_by_L.items():
-        out[f"L{L}_true"] = fields["true"]
-        out[f"L{L}_pred"] = fields["pred"]
-        out[f"L{L}_act"] = fields["act"]
-        out[f"L{L}_gap0"] = fields["gap0"]
-        out[f"L{L}_block"] = fields["block"]
-    setname = f"{code}_{args.split}"
+    out = _fields_to_npz(fields_by_L)
+    setname = C.setname(code, args.split)
     out["method"] = np.array(args.method)
     out["setname"] = np.array(setname)
     out["lengths"] = np.array(lengths, np.int32)
     out["margin"] = np.array(C.MARGIN, np.int32)
     out["seed"] = np.array(C.SEED, np.int32)
-    out_dir = getattr(args, "out_dir", None) or C.DATA
+    out_dir = getattr(args, "out_dir", None) or C.OUT
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f"dump_{args.method}_{setname}.npz")
     np.savez_compressed(path, **out)
@@ -212,7 +278,18 @@ def window_plan(lengths, gather_fn):
 
 
 def run(args):
-    fn, ck = resolve(args.method, getattr(args, "ckpt", None))
+    comp_sink = {} if getattr(args, "save_comp", False) else None
+    fn, ck = resolve(args.method, getattr(args, "ckpt", None),
+                     code=args.code, split=args.split, comp_sink=comp_sink)
+    if comp_sink is not None and (ck is None or int(ck.get("NCH", 1)) == 1):
+        raise SystemExit("--save-comp имеет смысл только для модели, обученной "
+                         "на компонентах: у остальных методов трёх каналов нет")
+    pick = None
+    if getattr(args, "windows", None):
+        pick = [int(x) for x in str(args.windows).replace(",", " ").split()]
+        if args.align_codes:
+            raise SystemExit("--windows и --align-codes вместе не поддержаны")
+        print(f"окна выбраны вручную: {pick} (из первых {args.n} по плану)")
     if ck is not None:
         print(f"чекпойнт: {args.method}.pt  шаг={ck['step']}  "
               f"val при обучении={ck['val']:.3f} нТл")
@@ -224,7 +301,7 @@ def run(args):
         # самое, что независимые прогоны по каждой станции отдельно.
         codes = [c.strip() for c in args.align_codes.split(",") if c.strip()]
         years_by_code = {c: C.load_split(args.split, code=c) for c in codes}
-        acts_by_code = {c: {y: C.activity(F) for y, F in yy.items()}
+        acts_by_code = {c: {y: C.window_activity(F) for y, F in yy.items()}
                         for c, yy in years_by_code.items()}
         print(f"метод={args.method}  align_codes={codes}  сплит={args.split}  "
               f"n={args.n}  margin={C.MARGIN}")
@@ -235,7 +312,8 @@ def run(args):
         for L, smps_by_code in plan:
             for c in codes:
                 fields, mae = _build_length_fields(smps_by_code[c], fn,
-                                                    acts_by_code[c], L)
+                                                    acts_by_code[c], L,
+                                                    comp_sink)
                 if fields is None:
                     print(f"{L:>6}{c:>6}{0:>6}  нет окон")
                     continue
@@ -246,8 +324,8 @@ def run(args):
         return
 
     years = C.load_split(args.split, code=args.code)
-    acts = {y: C.activity(F) for y, F in years.items()}
-    setname = f"{args.code}_{args.split}"
+    acts = {y: C.window_activity(F) for y, F in years.items()}
+    setname = C.setname(args.code, args.split)
 
     print(f"метод={args.method}  набор={setname} ({', '.join(map(str, sorted(years)))})"
           f"  n={args.n}  margin={C.MARGIN}")
@@ -257,7 +335,15 @@ def run(args):
     fields_by_L = {}
     plan = window_plan(lengths, lambda L, rng: C.gather(years, L, args.n, rng))
     for L, smps in plan:
-        fields, mae = _build_length_fields(smps, fn, acts, L)
+        if pick is not None:
+            # План окон детерминирован зерном, поэтому выбор по индексу даёт
+            # ТЕ ЖЕ окна, что в полном прогоне, — номер окна в полном дампе и
+            # здесь означает одно и то же.
+            bad = [i for i in pick if i >= len(smps)]
+            if bad:
+                raise SystemExit(f"L={L}: окон всего {len(smps)}, нет номеров {bad}")
+            smps = [smps[i] for i in pick]
+        fields, mae = _build_length_fields(smps, fn, acts, L, comp_sink)
         if fields is None:
             print(f"{L:>6}{0:>6}  нет окон")
             continue
@@ -267,13 +353,7 @@ def run(args):
     if args.out:
         # ручной путь вывода — сохраняем напрямую, без _save_dump (та всегда
         # строит имя по code/split)
-        out = {}
-        for L, fields in fields_by_L.items():
-            out[f"L{L}_true"] = fields["true"]
-            out[f"L{L}_pred"] = fields["pred"]
-            out[f"L{L}_act"] = fields["act"]
-            out[f"L{L}_gap0"] = fields["gap0"]
-            out[f"L{L}_block"] = fields["block"]
+        out = _fields_to_npz(fields_by_L)
         out["method"] = np.array(args.method)
         out["setname"] = np.array(setname)
         out["lengths"] = np.array(lengths, np.int32)
@@ -308,6 +388,19 @@ def main():
     ap.add_argument("--ckpt", default=None,
                      help="явный путь к чекпойнту .pt вместо models/<method>.pt "
                           "(имя дампа по-прежнему строится из --method)")
+    ap.add_argument("--save-comp", action="store_true",
+                     help="сохранить в дамп предсказанные и истинные X, Y, Z "
+                          "(поля L<L>_predXYZ / L<L>_trueXYZ) помимо модуля. "
+                          "На полном бенчмарке это +218 МБ на дамп, поэтому "
+                          "рассчитано на точечный прогон вместе с --windows: "
+                          "модуль и метрика от этого не меняются, панели нужны "
+                          "только рисунку с примерами окон")
+    ap.add_argument("--windows", default=None, metavar="НОМЕРА",
+                     help="прогнать только окна с этими номерами (через "
+                          "запятую), а не весь набор. Нумерация та же, что в "
+                          "полном дампе с тем же --n: план окон детерминирован "
+                          "зерном. Удобно, чтобы пересчитать одно выбранное "
+                          "окно — например типичное для рисунка")
     ap.add_argument("--out-dir", default=None,
                      help="каталог для дампов вместо data/ (имя файла стандартное; "
                           "работает и с --align-codes, где --out игнорируется) — "

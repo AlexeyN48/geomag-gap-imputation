@@ -1,0 +1,24 @@
+{
+ "arch": "nbeatsx",
+ "params": 512578,
+ "steps": 12000,
+ "batch": 16,
+ "accum": 1,
+ "lr": 0.001,
+ "best_val": 6.169472070412768,
+ "scale": [
+  26.40625
+ ],
+ "channels": 1,
+ "comp": false,
+ "kw": {},
+ "patch": 5,
+ "window": 8640,
+ "long_only": false,
+ "code": "ARS",
+ "gap_pool_code": "ARS",
+ "cfg": null,
+ "amp": "float32",
+ "seed": 1234,
+ "seconds": 338
+}
