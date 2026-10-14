@@ -252,6 +252,7 @@ scripts/  bench_data.py      рецепт данных + манифест (--che
           bench_regimes.py   режимы длины, Фридман/Немени, CD-диаграммы
           bench_robust.py    устойчивость к способу взвешивания недель
           bench_verdict.py   вердикты по протоколу (--test-ok, --combine)
+          bench_components.py точность каждой оси X, Y, Z (разведочно, раздел 12.4)
           bench_examples_comp.py  рисунки «типичное окно» X, Y, Z, F
           bench_examples.py, bench_plot.py, bench_conformal.py — вспомогательные, не в отчёте
           bench_report.py, bench_doc.py — сборка отчёта (не в git)
