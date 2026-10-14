@@ -221,6 +221,8 @@ def main():
                     help="куда класть точечные прогоны с компонентами. Они "
                          "сохраняются и переиспользуются: перекомпоновать "
                          "рисунок можно без GPU и без повторного прогона")
+    ap.add_argument("--dpi", type=int, default=170,
+                    help="разрешение PNG; для журнала нужно не меньше 300")
     ap.add_argument("--refresh", action="store_true",
                     help="пересчитать точечные прогоны, даже если файлы есть")
     a = ap.parse_args()
@@ -254,7 +256,7 @@ def main():
         fig = draw(dumps_f, paths, L, idx, a.code, a.split, a.archs, st,
                    ctx=a.ctx)
         out = os.path.join(OUT, f"fig_examples_comp_{a.code}_{a.split}_L{L}.png")
-        fig.savefig(out, dpi=170, facecolor="white")
+        fig.savefig(out, dpi=a.dpi, facecolor="white")
         plt.close(fig)
         print(f"  сохранено: {out}  ({os.path.getsize(out)/1e3:.0f} КБ)")
 
