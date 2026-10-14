@@ -40,6 +40,22 @@ from bench_regimes import PRETTY
 OUT = E.OUT
 CHANNELS = [("X", "север"), ("Y", "восток"), ("Z", "вниз")]
 
+# Подписи внутри рисунка: русские для отчёта, английские для статьи (--lang en).
+TXT = {
+    "ru": dict(truth="истина", side=dict(X="север", Y="восток", Z="вниз"),
+               ylab="{ch} ({side}), нТл", comp="компонента {ch}",
+               via="{a}, вход компоненты", fylab="модуль F, нТл",
+               ftitle="модуль F — вход модуль у всех, штрихом {a} на входе из компонент",
+               xlab="часы от начала пропуска (серое — контекст, он виден методу)",
+               sup="Типичное окно: пропуск {L} мин, {code}, {when}. Числа в легенде — MAE внутри дыры, нТл"),
+    "en": dict(truth="truth", side=dict(X="north", Y="east", Z="down"),
+               ylab="{ch} ({side}), nT", comp="component {ch}",
+               via="{a}, component input", fylab="F, nT",
+               ftitle="total field F: magnitude input; dashed — {a} with component input",
+               xlab="hours from gap start (grey: context visible to the method)",
+               sup="Typical window: {L}-min gap, {code}, {when}. Legend: MAE inside the gap, nT"),
+}
+
 # Пятёрка финалистов. В bench_examples палитра на четыре архитектуры (TSMixer
 # попал в пятёрку только после подбора гиперпараметров), поэтому цвет и штрих
 # для него задаются здесь, а остальные берутся оттуда без изменений — чтобы
@@ -109,8 +125,10 @@ def _level(y, m, L):
     return 0.0 if not np.isfinite(v) else float(v)
 
 
-def draw(dumps_f, comp_paths, L, idx, code, split, archs, st, ctx=None):
+def draw(dumps_f, comp_paths, L, idx, code, split, archs, st, ctx=None,
+         lang="ru", title=True):
     """Четыре панели сверху вниз: X, Y, Z, модуль."""
+    T = TXT[lang]
     cp = {a: np.load(p, allow_pickle=False) for a, p in comp_paths.items()}
     ref = dumps_f["pchip"]
     m = int(ref["margin"])
@@ -132,14 +150,14 @@ def draw(dumps_f, comp_paths, L, idx, code, split, archs, st, ctx=None):
         ax.axvspan(x[0], 0, color=E.CTX_C, lw=0, zorder=0)
         ax.axvspan(L / 60.0, x[-1], color=E.CTX_C, lw=0, zorder=0)
         ax.plot(x, truth - base, color=E.TRUTH, lw=st["lw_true"], zorder=3,
-                label="истина")
+                label=T["truth"])
         for a in archs:
             pr = cp[a][f"L{L}_predXYZ"][0][:, row].astype(np.float64)[gap] - base
             mae = np.nanmean(np.abs(pr - (truth[gap] - base)))
             ax.plot(xg, pr, color=COLORS[a], lw=st["lw"], ls=STYLES[a],
                     zorder=4, label=f"{PRETTY[a]}  {mae:.1f}")
-        ax.set_ylabel(f"{ch} ({side}), нТл", fontsize=st["lab"])
-        ax.set_title(f"компонента {ch}", fontsize=st["title"], loc="left")
+        ax.set_ylabel(T["ylab"].format(ch=ch, side=T["side"][ch]), fontsize=st["lab"])
+        ax.set_title(T["comp"].format(ch=ch), fontsize=st["title"], loc="left")
 
     # модуль: истина, интерполяция и оба входа у каждой сети — ровно тот
     # вопрос, ради которого рисунок и нужен
@@ -149,7 +167,7 @@ def draw(dumps_f, comp_paths, L, idx, code, split, archs, st, ctx=None):
     ax.axvspan(x[0], 0, color=E.CTX_C, lw=0, zorder=0)
     ax.axvspan(L / 60.0, x[-1], color=E.CTX_C, lw=0, zorder=0)
     ax.plot(x, truth - base, color=E.TRUTH, lw=st["lw_true"], zorder=3,
-            label="истина")
+            label=T["truth"])
     pp = ref[f"L{L}_pred"][idx].astype(np.float64)[gap] - base
     ax.plot(xg, pp, color=E.PCHIP_C, lw=st["lw"], ls=(0, (2, 2)), zorder=2,
             label=f"PCHIP  {np.nanmean(np.abs(pp - (truth[gap] - base))):.1f}")
@@ -164,14 +182,11 @@ def draw(dumps_f, comp_paths, L, idx, code, split, archs, st, ctx=None):
     pc = cp[a0][f"L{L}_predXYZ"][0].astype(np.float64)
     pxyz = np.sqrt((pc ** 2).sum(axis=1))[gap] - base
     ax.plot(xg, pxyz, color=COLORS[a0], lw=st["lw"] * 1.3, ls=(0, (4, 1.5)),
-            zorder=6, label=f"{PRETTY[a0]}, вход компоненты  "
+            zorder=6, label=T["via"].format(a=PRETTY[a0]) + "  "
                             f"{np.nanmean(np.abs(pxyz - ty)):.1f}")
-    ax.set_ylabel("модуль F, нТл", fontsize=st["lab"])
-    ax.set_title(f"модуль F — вход модуль у всех, штрихом {PRETTY[a0]} "
-                 f"на входе из компонент",
-                 fontsize=st["title"], loc="left")
-    ax.set_xlabel("часы от начала пропуска (серое — контекст, он виден методу)",
-                  fontsize=st["lab"])
+    ax.set_ylabel(T["fylab"], fontsize=st["lab"])
+    ax.set_title(T["ftitle"].format(a=PRETTY[a0]), fontsize=st["title"], loc="left")
+    ax.set_xlabel(T["xlab"], fontsize=st["lab"])
     vis = (x >= xlim[0]) & (x <= xlim[1])
     for ax in axes:
         ys = []
@@ -192,10 +207,10 @@ def draw(dumps_f, comp_paths, L, idx, code, split, archs, st, ctx=None):
         ax.tick_params(labelsize=st["tick"])
         ax.legend(fontsize=st["leg"], loc="upper left", ncol=2,
                   framealpha=0.85, borderpad=0.3)
-    fig.suptitle(f"Типичное окно: пропуск {L} мин, {code}, {when(ref, L, idx)}. "
-                 f"Числа в легенде — MAE внутри дыры, нТл",
-                 fontsize=st["title"] + 1, y=0.998)
-    fig.tight_layout(rect=(0, 0, 1, 0.985))
+    if title:
+        fig.suptitle(T["sup"].format(L=L, code=code, when=when(ref, L, idx)),
+                     fontsize=st["title"] + 1, y=0.998)
+    fig.tight_layout(rect=(0, 0, 1, 0.985) if title else None)
     return fig
 
 
@@ -221,6 +236,10 @@ def main():
                     help="куда класть точечные прогоны с компонентами. Они "
                          "сохраняются и переиспользуются: перекомпоновать "
                          "рисунок можно без GPU и без повторного прогона")
+    ap.add_argument("--lang", default="ru", choices=sorted(TXT),
+                    help="язык подписей внутри рисунка (en — для статьи)")
+    ap.add_argument("--no-title", action="store_true",
+                    help="без общего заголовка: в статье его заменяет подпись под рисунком")
     ap.add_argument("--dpi", type=int, default=170,
                     help="разрешение PNG; для журнала нужно не меньше 300")
     ap.add_argument("--refresh", action="store_true",
@@ -254,8 +273,9 @@ def main():
             print(f"  компоненты {'взяты с диска' if reused else 'пересчитаны'}:"
                   f" {arch}  ->  {os.path.basename(paths[arch])}")
         fig = draw(dumps_f, paths, L, idx, a.code, a.split, a.archs, st,
-                   ctx=a.ctx)
-        out = os.path.join(OUT, f"fig_examples_comp_{a.code}_{a.split}_L{L}.png")
+                   ctx=a.ctx, lang=a.lang, title=not a.no_title)
+        sfx = "" if a.lang == "ru" else f"_{a.lang}"
+        out = os.path.join(OUT, f"fig_examples_comp_{a.code}_{a.split}_L{L}{sfx}.png")
         fig.savefig(out, dpi=a.dpi, facecolor="white")
         plt.close(fig)
         print(f"  сохранено: {out}  ({os.path.getsize(out)/1e3:.0f} КБ)")
