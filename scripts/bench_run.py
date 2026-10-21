@@ -101,6 +101,76 @@ def fill_daily(inp, ndays=3):
     return out
 
 
+def _level24(inp, min_count=360):
+    """Скользящее суточное среднее по наблюдённым точкам (окно 1440 мин по центру).
+    Где наблюдений в окне меньше min_count — NaN."""
+    obs = np.isfinite(inp)
+    v = np.where(obs, inp, 0.0)
+    k = np.ones(DAY)
+    s = np.convolve(v, k, mode="same")
+    c = np.convolve(obs.astype(np.float64), k, mode="same")
+    out = np.full(inp.size, np.nan)
+    ok = c >= min_count
+    out[ok] = s[ok] / c[ok]
+    return out
+
+
+def fill_dayint(inp, ndays=2, edge=15, smooth=1):
+    """Интерполяция плюс типичный суточный ход — проверка того, сводится ли
+    выигрыш сетей к знанию регулярной суточной вариации.
+
+    1. Шаблон: из окна вычитается скользящее суточное среднее (уровень), и для
+       каждой минуты берётся медиана таких отклонений в тех же минутах ±1..ndays
+       соседних суток. Уровень снят, поэтому перепады уровня между сутками в
+       шаблон не попадают. Шаблон сглаживается скользящим средним в smooth
+       минут: медиана по нескольким суткам на минутном шаге шумная.
+    2. Остаток «данные − шаблон» усредняется (медиана) по edge наблюдённым
+       минутам у каждого края пропуска, и между краями проводится прямая — она
+       несёт уровень и его дрейф через пропуск.
+    3. Заполнение = шаблон + прямая: на краях совпадает с данными, внутри
+       даёт суточный цикл. Где шаблона нет (нет соседних суток), — PCHIP.
+    Как и все методы, видит только своё окно."""
+    n = inp.size
+    obs = np.isfinite(inp)
+    out = fill_pchip(inp)
+    if obs.all() or obs.sum() < 2:
+        return out
+    anom = inp - _level24(inp)
+    idx = np.arange(n)
+    cand = []
+    for k in range(1, ndays + 1):
+        for sh in (-k * DAY, k * DAY):
+            j = idx + sh
+            cand.append(np.where((j >= 0) & (j < n), anom[np.clip(j, 0, n - 1)], np.nan))
+    st = np.stack(cand)
+    ok = np.isfinite(st).any(0)
+    tmpl = np.full(n, np.nan)
+    if ok.any():
+        tmpl[ok] = np.nanmedian(st[:, ok], axis=0)
+    if smooth > 1:
+        fin = np.isfinite(tmpl)
+        k_ = np.ones(smooth)
+        num = np.convolve(np.where(fin, tmpl, 0.0), k_, mode="same")
+        den = np.convolve(fin.astype(np.float64), k_, mode="same")
+        tmpl = np.where(fin & (den > 0), num / np.maximum(den, 1), np.nan)
+    resid = inp - tmpl
+    have = np.isfinite(resid)
+    for s, e in _runs(~obs):
+        left = np.flatnonzero(have[:s])[-edge:]
+        right = s + np.flatnonzero(have[s:])
+        right = right[right >= e][:edge]
+        if left.size == 0 or right.size == 0:
+            continue                            # пропуск у края окна — остаётся PCHIP
+        r0, r1 = np.median(resid[left]), np.median(resid[right])
+        x0, x1 = left.mean(), right.mean()
+        g = np.arange(s, e)
+        line = r0 + (r1 - r0) * (g - x0) / (x1 - x0)
+        t = tmpl[g]
+        fill = np.isfinite(t)
+        out[g[fill]] = t[fill] + line[fill]
+    return out
+
+
 def _runs(mask):
     d = np.diff(np.concatenate(([0], mask.astype(np.int8), [0])))
     return list(zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)))
@@ -108,6 +178,17 @@ def _runs(mask):
 
 METHODS = {"mean": fill_mean, "locf": fill_locf, "linear": fill_linear,
            "pchip": fill_pchip, "daily": fill_daily}
+# сетка параметров «интерполяции плюс суточного хода» — выбор на валидации
+# первая сетка: k 1–3, края 5/30, сглаживание 1/30/120; лучший вариант оказался на краю
+# по k и по сглаживанию, поэтому сетка расширена (k до 5, сглаживание до 480 мин)
+_GRID = [(k, w, sm) for k in (1, 2, 3) for w in (5, 30) for sm in (1, 30, 120)] +         [(k, 5, sm) for k in (3, 4, 5) for sm in (120, 240, 480) if (k, sm) != (3, 120)]
+for _k, _w, _s in _GRID:
+    METHODS[f"dayint_k{_k}_w{_w}_s{_s}"] = (
+        lambda inp, k=_k, w=_w, sm=_s: fill_dayint(inp, k, w, sm))
+# Выбор на валидации (ARS 2023, минимум геом. среднего MAE на пропусках 1440–4320 мин):
+# k=5, края 5 мин, сглаживание 240 мин — 8.78 нТл против 11.64 у PCHIP; сетка на
+# плато (k=4 ≈ k=5, сглаживание 120 ≈ 240, 480 хуже). Больше 5 суток окно не вмещает.
+METHODS["dayint"] = lambda inp: fill_dayint(inp, 5, 5, 240)
 
 
 # ------------------------------------------------------------ прогон
