@@ -10,8 +10,9 @@ import argparse
 import numpy as np
 import xml.etree.ElementTree as ET
 
+# XML лежат в соседнем, первом проекте: Z:\University\Institute_of_Geophysics
 BASE = os.environ.get("IGF_BASE") or os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", ".."))
+    os.path.join(os.path.dirname(__file__), "..", "..", "Institute_of_Geophysics"))
 SRC = os.path.join(BASE, "dataset_intermagnet")
 OUT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data"))
 
