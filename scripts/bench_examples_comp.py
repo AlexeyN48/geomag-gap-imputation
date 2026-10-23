@@ -3,8 +3,12 @@ r"""Типичное окно по компонентам: четыре пане
 Зачем отдельно от bench_examples.py. Тот рисунок отвечает на вопрос «как
 выглядит заполнение на разных длинах» и показывает только модуль. Этот
 отвечает на другой: что происходит с ТРЕМЯ компонентами, когда сеть
-восстанавливает вектор, и видно ли глазом разницу между подачей модуля и
-подачей компонент. Поэтому панели здесь — по осям, а не по режимам длины.
+восстанавливает вектор. Поэтому панели здесь — по осям, а не по режимам
+длины, и модуль на четвёртой панели — тоже из восстановленных компонент.
+
+Второй рисунок на то же окно (FvsXYZ) — видно ли глазом разницу между подачей
+модуля и подачей компонент: панель на сеть, на каждой модуль от сети,
+обученной на модуле, и модуль из компонент той же архитектуры.
 
 Окно выбирается тем же правилом, что в bench_examples: медиана по средней
 (по финалистам) ошибке внутри дыры на входе-МОДУЛЕ. Правило намеренно одно и
@@ -22,6 +26,7 @@ r"""Типичное окно по компонентам: четыре пане
 
 Запуск:  cd scripts && python -u bench_examples_comp.py --code ARS --split val
 Выход:   figures/gap_examples/fig_examples_comp_<код>_<сплит>_L<длина>.png
+         figures/gap_examples/fig_examples_FvsXYZ_<код>_<сплит>_L<длина>.png
 """
 import os
 import sys
@@ -44,16 +49,22 @@ CHANNELS = [("X", "север"), ("Y", "восток"), ("Z", "вниз")]
 TXT = {
     "ru": dict(truth="истина", side=dict(X="север", Y="восток", Z="вниз"),
                ylab="{ch} ({side}), нТл", comp="компонента {ch}",
-               via="{a}, вход компоненты", fylab="модуль F, нТл",
-               ftitle="модуль F — вход модуль у всех, штрихом {a} на входе из компонент",
+               fylab="модуль F, нТл",
+               ftitle="модуль F = √(X² + Y² + Z²) из восстановленных компонент",
+               in_f="вход модуль", in_xyz="вход компоненты, √(X² + Y² + Z²)",
                xlab="часы от начала пропуска (серое — контекст, он виден методу)",
-               sup="Типичное окно: пропуск {L} мин, {code}, {when}. Числа в легенде — MAE внутри дыры, нТл"),
+               sup="Типичное окно: пропуск {L} мин, {code}, {when}. Числа в легенде — MAE внутри дыры, нТл",
+               supf="Модуль F на двух входах: сплошная — сеть на модуле, штрих — модуль из её "
+                    "компонент. Пропуск {L} мин, {code}, {when}. Числа — MAE внутри дыры, нТл"),
     "en": dict(truth="truth", side=dict(X="north", Y="east", Z="down"),
                ylab="{ch} ({side}), nT", comp="component {ch}",
-               via="{a}, component input", fylab="F, nT",
-               ftitle="total field F: magnitude input; dashed — {a} with component input",
+               fylab="F, nT",
+               ftitle="total field F = √(X² + Y² + Z²) from the restored components",
+               in_f="magnitude input", in_xyz="component input, √(X² + Y² + Z²)",
                xlab="hours from gap start (grey: context visible to the method)",
-               sup="Typical window: {L}-min gap, {code}, {when}. Legend: MAE inside the gap, nT"),
+               sup="Typical window: {L}-min gap, {code}, {when}. Legend: MAE inside the gap, nT",
+               supf="Total field F, two inputs: solid — magnitude input, dashed — magnitude of the "
+                    "restored components. {L}-min gap, {code}, {when}. Legend: MAE inside the gap, nT"),
 }
 
 # Пятёрка финалистов. В bench_examples палитра на четыре архитектуры (TSMixer
@@ -159,35 +170,89 @@ def draw(dumps_f, comp_paths, L, idx, code, split, archs, st, ctx=None,
         ax.set_ylabel(T["ylab"].format(ch=ch, side=T["side"][ch]), fontsize=st["lab"])
         ax.set_title(T["comp"].format(ch=ch), fontsize=st["title"], loc="left")
 
-    # модуль: истина, интерполяция и оба входа у каждой сети — ровно тот
-    # вопрос, ради которого рисунок и нужен
+    # Модуль — только из восстановленных компонент, теми же сетями, что выше:
+    # панель продолжает три компонентные, а не смешивает два входа. Сравнение
+    # с модульным входом вынесено в отдельный рисунок (draw_f_vs_xyz) —
+    # десять кривых на одной панели не читаются.
     ax = axes[3]
     truth = ref[f"L{L}_true"][idx].astype(np.float64)
     base = _level(truth, m, L)
+    ty = truth[gap] - base
     ax.axvspan(x[0], 0, color=E.CTX_C, lw=0, zorder=0)
     ax.axvspan(L / 60.0, x[-1], color=E.CTX_C, lw=0, zorder=0)
     ax.plot(x, truth - base, color=E.TRUTH, lw=st["lw_true"], zorder=3,
             label=T["truth"])
-    pp = ref[f"L{L}_pred"][idx].astype(np.float64)[gap] - base
-    ax.plot(xg, pp, color=E.PCHIP_C, lw=st["lw"], ls=(0, (2, 2)), zorder=2,
-            label=f"PCHIP  {np.nanmean(np.abs(pp - (truth[gap] - base))):.1f}")
-    ty = truth[gap] - base
     for a in archs:
-        pf = dumps_f[f"{a}_best"][f"L{L}_pred"][idx].astype(np.float64)[gap] - base
-        ax.plot(xg, pf, color=COLORS[a], lw=st["lw"], ls=STYLES[a], zorder=4,
-                label=f"{PRETTY[a]}  {np.nanmean(np.abs(pf - ty)):.1f}")
-    # Компонентный вход показан только у первой сети: десять кривых на одной
-    # панели не читаются, а вопрос «меняет ли вход картину» виден и на одной.
-    a0 = archs[0]
-    pc = cp[a0][f"L{L}_predXYZ"][0].astype(np.float64)
-    pxyz = np.sqrt((pc ** 2).sum(axis=1))[gap] - base
-    ax.plot(xg, pxyz, color=COLORS[a0], lw=st["lw"] * 1.3, ls=(0, (4, 1.5)),
-            zorder=6, label=T["via"].format(a=PRETTY[a0]) + "  "
-                            f"{np.nanmean(np.abs(pxyz - ty)):.1f}")
+        pxyz = _norm_xyz(cp[a], L)[gap] - base
+        ax.plot(xg, pxyz, color=COLORS[a], lw=st["lw"], ls=STYLES[a], zorder=4,
+                label=f"{PRETTY[a]}  {np.nanmean(np.abs(pxyz - ty)):.1f}")
     ax.set_ylabel(T["fylab"], fontsize=st["lab"])
-    ax.set_title(T["ftitle"].format(a=PRETTY[a0]), fontsize=st["title"], loc="left")
+    ax.set_title(T["ftitle"], fontsize=st["title"], loc="left")
     ax.set_xlabel(T["xlab"], fontsize=st["lab"])
-    vis = (x >= xlim[0]) & (x <= xlim[1])
+    _finish(axes, xlim, st)
+    if title:
+        fig.suptitle(T["sup"].format(L=L, code=code, when=when(ref, L, idx)),
+                     fontsize=st["title"] + 1, y=0.998)
+    fig.tight_layout(rect=(0, 0, 1, 0.985) if title else None)
+    return fig
+
+
+def draw_f_vs_xyz(dumps_f, comp_paths, L, idx, code, split, archs, st, ctx=None,
+                  lang="ru", title=True):
+    """Модуль на двух входах, панель на сеть: сплошная — та же архитектура,
+    обученная на модуле, штрих — модуль из её компонент. Цвет один на сеть,
+    вход различается только штрихом, так что пара читается сразу. Шкала по Y
+    общая у всех панелей: иначе одинаковый разрыв выглядел бы по-разному."""
+    T = TXT[lang]
+    cp = {a: np.load(p, allow_pickle=False) for a, p in comp_paths.items()}
+    ref = dumps_f["pchip"]
+    m = int(ref["margin"])
+    span = ref[f"L{L}_true"][idx].size
+    x = (np.arange(span) - m) / 60.0
+    gap = slice(m, m + L)
+    xg = x[gap]
+    c = ctx_minutes(L, m, ctx)
+    xlim = (-c / 60.0, (L + c) / 60.0)
+    truth = ref[f"L{L}_true"][idx].astype(np.float64)
+    base = _level(truth, m, L)
+    ty = truth[gap] - base
+
+    fig, axes = plt.subplots(len(archs), 1, figsize=st["fig"], sharex=True,
+                             squeeze=False)
+    axes = axes[:, 0]
+    for ax, a in zip(axes, archs):
+        ax.axvspan(x[0], 0, color=E.CTX_C, lw=0, zorder=0)
+        ax.axvspan(L / 60.0, x[-1], color=E.CTX_C, lw=0, zorder=0)
+        ax.plot(x, truth - base, color=E.TRUTH, lw=st["lw_true"], zorder=3,
+                label=T["truth"])
+        pf = dumps_f[f"{a}_best"][f"L{L}_pred"][idx].astype(np.float64)[gap] - base
+        ax.plot(xg, pf, color=COLORS[a], lw=st["lw"], ls="-", zorder=4,
+                label=f"{T['in_f']}  {np.nanmean(np.abs(pf - ty)):.1f}")
+        pxyz = _norm_xyz(cp[a], L)[gap] - base
+        ax.plot(xg, pxyz, color=COLORS[a], lw=st["lw"] * 1.3, ls=(0, (4, 1.5)),
+                zorder=5, label=f"{T['in_xyz']}  {np.nanmean(np.abs(pxyz - ty)):.1f}")
+        ax.set_ylabel(T["fylab"], fontsize=st["lab"])
+        ax.set_title(PRETTY[a], fontsize=st["title"], loc="left")
+    axes[-1].set_xlabel(T["xlab"], fontsize=st["lab"])
+    _finish(axes, xlim, st, common=True, ncol=3)
+    if title:
+        fig.suptitle(T["supf"].format(L=L, code=code, when=when(ref, L, idx)),
+                     fontsize=st["title"] + 1, y=0.998)
+    fig.tight_layout(rect=(0, 0, 1, 0.985) if title else None)
+    return fig
+
+
+def _norm_xyz(dump, L):
+    """Модуль по восстановленным компонентам точечного прогона — тот же, что
+    bench_run.fill_comp отдаёт в метрику."""
+    pc = dump[f"L{L}_predXYZ"][0].astype(np.float64)
+    return np.sqrt((pc ** 2).sum(axis=1))
+
+
+def _finish(axes, xlim, st, common=False, ncol=2):
+    """Пределы по Y по видимой части кривых, сетка, легенды. common — одна
+    шкала на все панели."""
+    lims = []
     for ax in axes:
         ys = []
         for ln in ax.lines:
@@ -195,23 +260,21 @@ def draw(dumps_f, comp_paths, L, idx, code, split, archs, st, ctx=None,
             k = (xd >= xlim[0]) & (xd <= xlim[1]) & np.isfinite(yd)
             if k.any():
                 ys.append((np.nanmin(yd[k]), np.nanmax(yd[k])))
-        if ys:
-            lo = min(v[0] for v in ys); hi = max(v[1] for v in ys)
+        lims.append((min(v[0] for v in ys), max(v[1] for v in ys)) if ys else None)
+    if common and any(lims):
+        lo = min(v[0] for v in lims if v); hi = max(v[1] for v in lims if v)
+        lims = [(lo, hi)] * len(axes)
+    for ax, lim in zip(axes, lims):
+        if lim:
+            lo, hi = lim
             pad = (hi - lo) * 0.08 or 1.0
             # сверху места больше: там стоит легенда
             ax.set_ylim(lo - pad, hi + pad * 3.2)
-
-    for ax in axes:
         ax.set_xlim(*xlim)
         ax.grid(True, color="#e6e6e6", lw=0.6)
         ax.tick_params(labelsize=st["tick"])
-        ax.legend(fontsize=st["leg"], loc="upper left", ncol=2,
+        ax.legend(fontsize=st["leg"], loc="upper left", ncol=ncol,
                   framealpha=0.85, borderpad=0.3)
-    if title:
-        fig.suptitle(T["sup"].format(L=L, code=code, when=when(ref, L, idx)),
-                     fontsize=st["title"] + 1, y=0.998)
-    fig.tight_layout(rect=(0, 0, 1, 0.985) if title else None)
-    return fig
 
 
 def main():
@@ -248,6 +311,8 @@ def main():
 
     st = dict(E.STYLE[a.style])
     st["fig"] = (10.0, 9.0) if a.style == "report" else (14.0, 11.0)
+    nr = len(a.archs)
+    st["fig_fvs"] = (10.0, 1.0 + 1.9 * nr) if a.style == "report" else (14.0, 1.2 + 2.3 * nr)
     # выбор окна — по модульным дампам финалистов, см. докстринг
     E.NETS = [f"{x}_best" for x in FINALISTS]
     need = E.NETS + ["pchip"]
@@ -276,6 +341,13 @@ def main():
                    ctx=a.ctx, lang=a.lang, title=not a.no_title)
         sfx = "" if a.lang == "ru" else f"_{a.lang}"
         out = os.path.join(OUT, f"fig_examples_comp_{a.code}_{a.split}_L{L}{sfx}.png")
+        fig.savefig(out, dpi=a.dpi, facecolor="white")
+        plt.close(fig)
+        print(f"  сохранено: {out}  ({os.path.getsize(out)/1e3:.0f} КБ)")
+        fig = draw_f_vs_xyz(dumps_f, paths, L, idx, a.code, a.split, a.archs,
+                            dict(st, fig=st["fig_fvs"]), ctx=a.ctx, lang=a.lang,
+                            title=not a.no_title)
+        out = os.path.join(OUT, f"fig_examples_FvsXYZ_{a.code}_{a.split}_L{L}{sfx}.png")
         fig.savefig(out, dpi=a.dpi, facecolor="white")
         plt.close(fig)
         print(f"  сохранено: {out}  ({os.path.getsize(out)/1e3:.0f} КБ)")
