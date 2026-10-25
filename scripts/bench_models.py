@@ -7,8 +7,12 @@ r"""Обучаемые модели бенчмарка и общее предс�
 
 Выход модели — P значений на участок, то есть та же минутная сетка. 
 
-Модели: dlinear (линейная), unet (свёрточная), segrnn (рекуррентная).
+Модели: dlinear (линейная), unet (свёрточная), segrnn (рекуррентная),
+внимание (saits, imputeformer), периодика (timesnet), MLP (nhits, nbeatsx,
+tsmixerx, tide), диффузия (csdi) и фундаментальная модель (moment).
 """
+import os
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -227,6 +231,187 @@ class ImputeFormer(nn.Module):
         return self.head(h)                              # [B,WB,P]
 
 
+class CSDI(nn.Module):
+    """Диффузионная модель: восстановление сэмплированием из условного
+    распределения пропуска по наблюдённой части окна.
+
+    Единственное семейство в наборе, дающее неопределённость напрямую, а не
+    надстройкой. Плата двойная — обучение дороже и ВЫВОД дороже: на каждое окно
+    n_diff_steps шагов обратной диффузии на сэмпл, поэтому валидационный набор
+    при обучении уменьшен (VAL_PER_L).
+
+    Работает по POUT значащим каналам токена (P минут × NCH компонент);
+    гармоники времени уходят в side_info, куда их и кладёт исходная
+    реализация. Ответ — медиана по n_samples сэмплам."""
+
+    VAL_PER_L = 8                    # окон на длину при валидации: вывод дорог
+
+    def __init__(self, n_layers=4, n_heads=8, n_channels=64, d_feat_emb=16,
+                 n_diff_steps=50, n_samples=1, **kw):
+        super().__init__()
+        from pypots.nn.modules.csdi import BackboneCSDI
+        self.K, self.L = POUT, WB
+        self.n_samples = int(n_samples)
+        self.d_time = 4                                   # sin/cos суток и года
+        self.feat_emb = nn.Parameter(torch.randn(self.K, d_feat_emb) * 0.02)
+        self.body = BackboneCSDI(n_layers, n_heads, n_channels, self.K,
+                                 self.d_time, d_feat_emb, n_channels,
+                                 False, n_diff_steps, "quad", 1e-4, 0.5)
+
+    def _side(self, X, cond):
+        """side_info [B, d_time + d_feat + 1, K, L]: время, признак, маска."""
+        B = X.shape[0]
+        t = X[:, :, POUT:POUT + 4].permute(0, 2, 1)              # [B,4,L]
+        t = t.unsqueeze(2).expand(-1, -1, self.K, -1)            # [B,4,K,L]
+        f = self.feat_emb.t()[None, :, :, None].expand(B, -1, -1, self.L)
+        return torch.cat([t, f, cond.unsqueeze(1)], dim=1)
+
+    def custom_loss(self, X, M, Y, A):
+        """Обучение идёт родным лоссом диффузии, а не общим masked MAE: у неё
+        цель — предсказать шум, и подменять её нельзя."""
+        obs = Y.permute(0, 2, 1)                                 # [B,K,L]
+        cond = M[:, :, :POUT].permute(0, 2, 1)
+        ind = A.permute(0, 2, 1)
+        return self.body.calc_loss(obs, cond, ind, self._side(X, cond))
+
+    @torch.no_grad()
+    def forward(self, X, M):
+        cond = M[:, :, :POUT].permute(0, 2, 1)
+        obs = X[:, :, :POUT].permute(0, 2, 1) * cond
+        out = self.body(obs, cond, self._side(X, cond), self.n_samples)
+        if isinstance(out, (tuple, list)):
+            out = out[0]
+        if out.dim() == 4:                                       # [B,S,K,L]
+            out = out.median(dim=1).values
+        # backbone отдаёт СЫРЫЕ сэмплы; ответ собирается как наблюдения там, где
+        # они есть, и сэмпл в пропусках — так же, как в исходной реализации
+        out = obs * cond + out * (1.0 - cond)
+        return out.permute(0, 2, 1)                              # [B,WB,POUT]
+
+
+MOMENT_REPO = {"small": "AutonLab/MOMENT-1-small", "base": "AutonLab/MOMENT-1-base",
+               "large": "AutonLab/MOMENT-1-large"}
+# локальная копия весов (get_weights.py) — для узлов без интернета
+PRETRAINED = os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
+                                          "models", "pretrained"))
+
+
+def moment_files(size):
+    """config.json и model.safetensors модели MOMENT: из models/pretrained/,
+    если веса положены туда заранее, иначе из кэша Hugging Face (скачиваются
+    при первом обращении)."""
+    repo = MOMENT_REPO[size]
+    local = os.path.join(PRETRAINED, repo.split("/")[1])
+    if os.path.exists(os.path.join(local, "model.safetensors")):
+        return os.path.join(local, "config.json"), os.path.join(local, "model.safetensors")
+    from huggingface_hub import hf_hub_download
+    return (hf_hub_download(repo, "config.json"),
+            hf_hub_download(repo, "model.safetensors"))
+
+
+class Moment(nn.Module):
+    """MOMENT — фундаментальная модель временных рядов (кодировщик T5,
+    предобученный восстанавливать замаскированные участки на большом корпусе
+    рядов). Веса — оригинальные AutonLab/MOMENT-1-{small,base,large}; модуль
+    повторяет их устройство ключ в ключ, чтобы веса легли без переименований.
+
+    Как ряд подаётся. MOMENT одноканальный: каждая компонента идёт отдельным
+    рядом (как в исходной модели). Работает по минутам, а не по нашим
+    5-минутным токенам: окно 8640 мин режется на родные патчи по 8 минут
+    (1080 патчей; при предобучении было 64, позиционное кодирование
+    синусоидальное до 5000, относительное смещение T5 от длины не зависит).
+    Патч, где наблюдены не все 8 минут, заменяется обученным эмбеддингом
+    маски — ровно так модель и предобучалась. Нормировка RevIN — по
+    наблюдённым точкам ряда. Гармоники времени MOMENT не принимает.
+
+    mode: full — дообучение целиком; head — заморожен кодировщик, учится
+    только голова (linear probing); без дообучения — bench_train --steps 0
+    (zero-shot)."""
+
+    VAL_PER_L = 30
+
+    def __init__(self, size="base", mode="full", grad_ckpt=1, dropout=0.1,
+                 _extra=None, **kw):
+        super().__init__()
+        import json as _json
+        from transformers import T5Config
+        from transformers.models.t5.modeling_t5 import T5Stack
+        self.mode = mode
+        if _extra is not None:                  # из чекпойнта: веса придут оттуда
+            cfg_all, wpath = _extra, None
+        else:
+            cpath, wpath = moment_files(size)
+            with open(cpath, encoding="utf-8") as f:
+                cfg_all = _json.load(f)
+        self.ckpt_extra = cfg_all               # уходит в чекпойнт (bench_models.save)
+        t5 = T5Config(**cfg_all["t5_config"])
+        t5.is_decoder, t5.use_cache, t5.is_encoder_decoder = False, False, False
+        d = t5.d_model
+        self.pl = int(cfg_all.get("patch_len", 8))
+        if C.W % self.pl:
+            raise SystemExit(f"окно {C.W} не делится на патч MOMENT {self.pl}")
+        self.encoder = T5Stack(t5)
+        if getattr(self.encoder, "embed_tokens", None) is not None:
+            self.encoder.embed_tokens = None    # словарь токенов не нужен: вход — эмбеддинги
+        self.value_embedding = nn.Linear(self.pl, d, bias=False)
+        self.mask_embedding = nn.Parameter(torch.zeros(d))
+        self.register_buffer("pe", torch.zeros(1, 5000, d))
+        self.head = nn.Linear(d, self.pl)
+        self.drop = nn.Dropout(dropout)
+        if wpath is not None:
+            self._load_pretrained(wpath)
+        if mode == "head":
+            for mod in (self.encoder, self.value_embedding):
+                for p in mod.parameters():
+                    p.requires_grad_(False)
+            self.mask_embedding.requires_grad_(False)
+        elif mode != "full":
+            raise SystemExit(f"MOMENT: mode {mode}; есть full и head")
+        if grad_ckpt and mode == "full":
+            self.encoder.gradient_checkpointing_enable()
+
+    def _load_pretrained(self, path):
+        from safetensors.torch import load_file
+        sd = load_file(path)
+        own = {"patch_embedding.value_embedding.weight": "value_embedding.weight",
+               "patch_embedding.mask_embedding": "mask_embedding",
+               "patch_embedding.position_embedding.pe": "pe",
+               "head.linear.weight": "head.weight", "head.linear.bias": "head.bias"}
+        mapped = {}
+        for k, v in sd.items():
+            if k in own:
+                mapped[own[k]] = v
+            elif k.startswith("encoder.") and not k.startswith("encoder.embed_tokens"):
+                mapped[k] = v
+        missing, unexpected = self.load_state_dict(mapped, strict=False)
+        if missing or unexpected:
+            raise SystemExit(f"веса MOMENT легли не полностью: нет {missing[:4]}, "
+                             f"лишние {unexpected[:4]}")
+
+    def forward(self, X, M):
+        B = X.shape[0]
+        x = X[:, :, :POUT].reshape(B, C.W, NCH).permute(0, 2, 1).reshape(B * NCH, C.W)
+        m = M[:, :, :POUT].reshape(B, C.W, NCH).permute(0, 2, 1).reshape(B * NCH, C.W)
+        # RevIN по наблюдённым точкам каждого ряда
+        cnt = m.sum(1, keepdim=True).clamp(min=1)
+        mu = (x * m).sum(1, keepdim=True) / cnt
+        sd = torch.sqrt((((x - mu) * m) ** 2).sum(1, keepdim=True) / cnt) + 1e-5
+        xn = (x - mu) / sd * m
+        n = C.W // self.pl
+        xp = xn.reshape(B * NCH, n, self.pl)
+        pm = (m.reshape(B * NCH, n, self.pl).sum(-1) == self.pl).unsqueeze(-1).to(xp.dtype)
+        emb = pm * self.value_embedding(xp) + (1 - pm) * self.mask_embedding
+        emb = self.drop(emb + self.pe[:, :n].to(emb.dtype))
+        att = torch.ones(B * NCH, n, dtype=torch.long, device=x.device)
+        if self.mode == "head":
+            with torch.no_grad():
+                h = self.encoder(inputs_embeds=emb, attention_mask=att).last_hidden_state
+        else:
+            h = self.encoder(inputs_embeds=emb, attention_mask=att).last_hidden_state
+        y = self.head(self.drop(h)).reshape(B * NCH, C.W) * sd + mu
+        return y.reshape(B, NCH, C.W).permute(0, 2, 1).reshape(B, WB, POUT)
+
+
 def _stack_forward(blocks, y, mask):
     """Общий цикл backcast/forecast NHITS и N-BEATS (взят из forward() обеих
     архитектур в neuralforecast дословно): реконструкция уточняется по
@@ -398,7 +583,8 @@ ARCH = {"dlinear": DLinear, "unet": UNet1D, "segrnn": SegRNN,
         "saits": Saits, "timesnet": TimesNet,
         "imputeformer": ImputeFormer,
         "nhits": NHITS, "nbeatsx": NBEATSx,
-        "tsmixerx": TSMixerx, "tide": TiDE}
+        "tsmixerx": TSMixerx, "tide": TiDE,
+        "csdi": CSDI, "moment": Moment}
 
 
 def build(name, **kw):
@@ -410,8 +596,11 @@ def build(name, **kw):
 def save(path, net, name, scale, kw, step, val):
     # при NCH > 1 масштаб покомпонентный, скаляром его не записать
     scale = float(scale) if np.ndim(scale) == 0 else np.asarray(scale, np.float32)
+    # extra — то, без чего архитектуру не построить из чекпойнта без сети:
+    # у MOMENT это конфигурация T5 (веса и так лежат в state)
     torch.save(dict(state=net.state_dict(), arch=name, scale=scale,
-                    kw=kw, step=int(step), val=float(val), P=P, NCH=NCH, W=int(C.W)), path)
+                    kw=kw, step=int(step), val=float(val), P=P, NCH=NCH, W=int(C.W),
+                    extra=getattr(net, "ckpt_extra", None)), path)
 
 
 def load(path, device="cpu"):
@@ -420,7 +609,10 @@ def load(path, device="cpu"):
         C.W = int(ck["W"])          # окно оценки = окно обучения
     set_channels(int(ck.get("NCH", 1)))   # каналы оценки = каналы обучения
     set_patch(int(ck.get("P", 5)))        # патч оценки = патч обучения
-    net = build(ck["arch"], **ck.get("kw", {}))
+    kw = dict(ck.get("kw", {}))
+    if ck.get("extra") is not None:
+        kw["_extra"] = ck["extra"]
+    net = build(ck["arch"], **kw)
     net.load_state_dict(ck["state"])
     net.to(device).eval()
     return net, ck
