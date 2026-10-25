@@ -9,7 +9,7 @@
 #SBATCH --time=72:00:00
 #SBATCH --output=cluster/logs/slurm_%x_%j.out
 set -euo pipefail
-STAGE="${1:?укажите этап: baselines grid1 grid2 griddumps select seeds seeddumps stations stationdumps summary}"
+STAGE="${1:?укажите этап: baselines grid1 grid2 griddumps select seeds seedval finalists stations stationval test summary}"
 cd "${SLURM_SUBMIT_DIR:-$(dirname "$0")/..}"
 export IGF_SPLIT=comp
 python -u scripts/bench_jobs.py "$STAGE"
