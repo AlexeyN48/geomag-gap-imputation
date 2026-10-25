@@ -1,24 +1,29 @@
 r"""Задания для кластера: список команд по этапам -> cluster/jobs/<этап>.jsonl.
 
-Каждое задание — одна команда (обучение, прогон, метрика) с признаком
+Каждое задание — одна команда (обучение, прогон, сводка) с признаком
 «нужна ли видеокарта» и файлом-результатом: если он уже есть, очередь
 задание пропускает, поэтому прерванный этап просто запускается заново.
 Исполняет задания cluster/run_queue.py — по одному на видеокарту.
 
-Этапы идут по порядку; следующий генерируется, когда закончен предыдущий
-(grid2 берёт лучшую скорость обучения из grid1, seeds — победителей из
-select):
+Порядок этапов повторяет логику работы: все выборы — только на валидации,
+тестовые годы вскрываются последним этапом, когда выбирать уже нечего.
+Следующий этап генерируется, когда закончен предыдущий: grid2 берёт лучшую
+скорость из grid1, seeds — конфигурации из select, stations — финалистов из
+finalists.
 
-  baselines   CPU  интерполяция и сезонные базлайны: дампы на всех станциях
-                   и наборах (нужны и сами по себе, и как отсчёт Score)
+  baselines   CPU  интерполяция и сезонные базлайны на валидации всех станций
+                   (отсчёт Score для сетей)
   grid1       GPU  подбор CSDI и MOMENT, ступень 1: три скорости, размер M
   grid2       GPU  ступень 2: размеры S и L при лучшей скорости
-  griddumps   GPU  дампы всех ячеек грида на валидации (1024 окна)
-  select      CPU  выбор победителя -> models/<сплит>/<арх>_best.json
-  seeds       GPU  все архитектуры на ARS, оба входа, 5 сидов
-  seeddumps   GPU  их дампы: ARS (val, test, test_hard) и перенос на 5 станций
+  griddumps   GPU  ячейки грида на валидации (1024 окна)
+  select      CPU  победитель ячеек -> models/<сплит>/<арх>_best.json
+  seeds       GPU  все сети на ARS, оба входа, 5 сидов
+  seedval     GPU  их прогоны на валидации ARS
+  finalists   CPU  пятёрка по среднему рангу на валидации, усреднённому по сидам
   stations    GPU  финалисты, обученные на каждой из 5 станций, оба входа, 5 сидов
-  stationdumps GPU их дампы: своя станция (val) и все 6 станций (test, test_hard)
+  stationval  GPU  их прогоны на валидации своей станции
+  test        GPU  тестовые годы: базлайны и все модели на ARS, перенос
+                   финалистов ARS на станции, модели станций на всех станциях
   summary     CPU  сводка по сидам -> data/<сплит>/seeds_summary.csv
 
 Запуск (из корня проекта):
@@ -39,17 +44,15 @@ JOBS = os.path.join(ROOT, "cluster", "jobs")
 PY = [sys.executable, "-u"]
 
 CODES = ["ARS", "WNG", "CMO", "KAK", "HUA", "HER"]
-SPLITS3 = ["val", "test", "test_hard"]
+OTHER = [c for c in CODES if c != C.CODE]
 TESTS = ["test", "test_hard"]
-# 1234 — зерно прежних моделей работы; остальные четыре зафиксированы здесь
-SEEDS = [1234, 2345, 3456, 4567, 5678]
 BASELINES = ["pchip", "linear", "dayint", "seadec", "harmreg"]
 NEW = ["csdi", "moment"]
 ALL_ARCHS = list(G.GRID)
-FINALISTS = ["unet", "saits", "timesnet", "imputeformer", "tsmixerx"]
 N = 1024
 SEED_MODELS = os.path.join(C.MODELS, "seeds")
 SEED_DUMPS = os.path.join(C.OUT, "seeds")
+FINALISTS_JSON = os.path.join(SEED_DUMPS, "finalists.json")
 
 
 def script(name):
@@ -94,10 +97,53 @@ def ready_archs(archs):
     return ok
 
 
+def finalists(a):
+    if a.finalists:
+        return a.finalists
+    if not os.path.exists(FINALISTS_JSON):
+        raise SystemExit(f"нет {os.path.relpath(FINALISTS_JSON, ROOT)} — сначала этап finalists")
+    with open(FINALISTS_JSON, encoding="utf-8") as f:
+        fin = json.load(f)["finalists"]
+    print(f"  финалисты: {', '.join(fin)}")
+    return fin
+
+
+def models(archs, codes, seeds):
+    """(имя, путь .pt, станция обучения) по всем сочетаниям и обоим входам."""
+    for arch in ready_archs(archs):
+        for code in codes:
+            for comp in (False, True):
+                for s in seeds:
+                    name = seed_name(arch, code, comp, s)
+                    yield arch, code, comp, s, name, os.path.join(SEED_MODELS, name + ".pt")
+
+
+def train_jobs(archs, codes, seeds):
+    out = []
+    for arch, code, comp, s, name, pt in models(archs, codes, seeds):
+        cmd = PY + [script("bench_train.py"), "--arch", arch, "--code", code,
+                    "--cfg", best_cfg(arch), "--seed", s, "--out", pt]
+        if comp:
+            cmd.append("--comp")
+        out.append(job(name, cmd, pt[:-3] + ".json", True))
+    return out
+
+
+def dump_jobs(archs, codes, seeds, targets):
+    """targets(станция обучения) -> [(станция проверки, набор)]."""
+    out = []
+    for arch, code, comp, s, name, pt in models(archs, codes, seeds):
+        for tc, split in targets(code):
+            out.append(job(f"{name}@{C.setname(tc, split)}",
+                           run_cmd(name, tc, split, ckpt=pt, out_dir=SEED_DUMPS),
+                           dump_path(name, tc, split, SEED_DUMPS), True))
+    return out
+
+
 # ------------------------------------------------------------------ этапы
 def st_baselines(a):
-    return [job(f"{m}_{C.setname(c, s)}", run_cmd(m, c, s), dump_path(m, c, s), False)
-            for m in BASELINES for c in CODES for s in SPLITS3]
+    return [job(f"{m}_{C.setname(c, 'val')}", run_cmd(m, c, "val"), dump_path(m, c, "val"), False)
+            for m in BASELINES for c in CODES]
 
 
 def st_grid1(a):
@@ -141,59 +187,40 @@ def st_select(a):
                 [os.path.join(C.MODELS, f"{x}_best.json") for x in archs], False)]
 
 
-def _train_jobs(archs, codes, seeds):
-    out = []
-    for arch in ready_archs(archs):
-        for code in codes:
-            for comp in (False, True):
-                for s in seeds:
-                    name = seed_name(arch, code, comp, s)
-                    pt = os.path.join(SEED_MODELS, name + ".pt")
-                    cmd = PY + [script("bench_train.py"), "--arch", arch, "--code", code,
-                                "--cfg", best_cfg(arch), "--seed", s, "--out", pt]
-                    if comp:
-                        cmd.append("--comp")
-                    out.append(job(name, cmd, pt[:-3] + ".json", True))
-    return out
-
-
-def _dump_jobs(archs, train_codes, seeds, targets):
-    """targets(train_code) -> [(код проверки, набор)]."""
-    out = []
-    for arch in ready_archs(archs):
-        for tc in train_codes:
-            for comp in (False, True):
-                for s in seeds:
-                    name = seed_name(arch, tc, comp, s)
-                    pt = os.path.join(SEED_MODELS, name + ".pt")
-                    for code, split in targets(tc):
-                        out.append(job(f"{name}@{C.setname(code, split)}",
-                                       run_cmd(name, code, split, ckpt=pt, out_dir=SEED_DUMPS),
-                                       dump_path(name, code, split, SEED_DUMPS), True))
-    return out
-
-
 def st_seeds(a):
-    return _train_jobs(a.archs or ALL_ARCHS, [C.CODE], a.seeds)
+    return train_jobs(a.archs or ALL_ARCHS, [C.CODE], a.seeds)
 
 
-def st_seeddumps(a):
-    archs = a.archs or ALL_ARCHS
-    out = _dump_jobs(archs, [C.CODE], a.seeds, lambda tc: [(C.CODE, s) for s in SPLITS3])
-    # перенос моделей ARS на остальные станции — для финалистов, как в работе
-    fin = [x for x in archs if x in (a.finalists or FINALISTS)]
-    out += _dump_jobs(fin, [C.CODE], a.seeds,
-                      lambda tc: [(c, s) for c in CODES if c != C.CODE for s in TESTS])
-    return out
+def st_seedval(a):
+    return dump_jobs(a.archs or ALL_ARCHS, [C.CODE], a.seeds, lambda tc: [(C.CODE, "val")])
+
+
+def st_finalists(a):
+    return [job("finalists", PY + [script("bench_finalists.py"), "--archs"]
+                + ready_archs(a.archs or ALL_ARCHS) + ["--seeds"] + a.seeds,
+                FINALISTS_JSON, False)]
 
 
 def st_stations(a):
-    return _train_jobs(a.finalists or FINALISTS, [c for c in CODES if c != C.CODE], a.seeds)
+    return train_jobs(finalists(a), OTHER, a.seeds)
 
 
-def st_stationdumps(a):
-    return _dump_jobs(a.finalists or FINALISTS, [c for c in CODES if c != C.CODE], a.seeds,
-                      lambda tc: [(tc, "val")] + [(c, s) for c in CODES for s in TESTS])
+def st_stationval(a):
+    return dump_jobs(finalists(a), OTHER, a.seeds, lambda tc: [(tc, "val")])
+
+
+def st_test(a):
+    fin = finalists(a)
+    out = [job(f"{m}_{C.setname(c, s)}", run_cmd(m, c, s), dump_path(m, c, s), False)
+           for m in BASELINES for c in CODES for s in TESTS]
+    # все сети ARS на тестах ARS
+    out += dump_jobs(a.archs or ALL_ARCHS, [C.CODE], a.seeds,
+                     lambda tc: [(C.CODE, s) for s in TESTS])
+    # перенос финалистов ARS на остальные станции
+    out += dump_jobs(fin, [C.CODE], a.seeds, lambda tc: [(c, s) for c in OTHER for s in TESTS])
+    # модели станций: своя станция и перенос на все остальные, включая ARS
+    out += dump_jobs(fin, OTHER, a.seeds, lambda tc: [(c, s) for c in CODES for s in TESTS])
+    return out
 
 
 def st_summary(a):
@@ -203,8 +230,8 @@ def st_summary(a):
 
 STAGES = {"baselines": st_baselines, "grid1": st_grid1, "grid2": st_grid2,
           "griddumps": st_griddumps, "select": st_select, "seeds": st_seeds,
-          "seeddumps": st_seeddumps, "stations": st_stations,
-          "stationdumps": st_stationdumps, "summary": st_summary}
+          "seedval": st_seedval, "finalists": st_finalists, "stations": st_stations,
+          "stationval": st_stationval, "test": st_test, "summary": st_summary}
 
 
 def main():
@@ -212,10 +239,10 @@ def main():
     ap.add_argument("stage", choices=list(STAGES))
     ap.add_argument("--archs", nargs="+", default=None,
                     help="архитектуры (по умолчанию: для grid* — CSDI и MOMENT, "
-                         "для seeds — все с готовой конфигурацией)")
+                         "иначе — все с готовой конфигурацией)")
     ap.add_argument("--finalists", nargs="+", default=None,
-                    help=f"архитектуры для опытов на станциях (по умолчанию {' '.join(FINALISTS)})")
-    ap.add_argument("--seeds", type=int, nargs="+", default=SEEDS)
+                    help="финалисты вручную вместо выбранных этапом finalists")
+    ap.add_argument("--seeds", type=int, nargs="+", default=C.SEEDS)
     a = ap.parse_args()
 
     jobs = STAGES[a.stage](a)
