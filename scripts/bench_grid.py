@@ -75,10 +75,10 @@ SIZES = ("S", "M", "L")
 
 # arch -> (главный параметр, {S, M, L: значение}, производные kw(value))
 # порядок — по стоимости одного прогона (минуты на RTX 4060, по models/*.json)
-# CrossFormer и CSDI выведены из работы по стоимости счёта: 3.8 и 2.6 часа на
-# одно обучение против 0.1-1.5 у остальных, вместе — половина стоимости грида.
-# Решение и его цена описаны в отчёте (раздел 4). Здесь они просто исключены,
-# чтобы бюджет подбора у всех участников работы остался равным.
+# CrossFormer выведен из работы по стоимости счёта (3.8 ч на одно обучение на
+# RTX 4060 против 0.1-1.5 у остальных). CSDI исключался по той же причине и
+# возвращён вместе с MOMENT, когда появился кластер: бюджет подбора у них тот
+# же — 5 обучений по 12000 шагов.
 GRID = {
     "dlinear":      ("kernel",     {"S": 13,  "M": 25,  "L": 49},  lambda v: {}),
     "nbeatsx":      ("mlp",        {"S": 128, "M": 256, "L": 512}, lambda v: {}),
@@ -90,7 +90,19 @@ GRID = {
     "timesnet":     ("d_model",    {"S": 32,  "M": 64,  "L": 128}, lambda v: {"d_ffn": 2 * v}),
     "saits":        ("d_model",    {"S": 64,  "M": 128, "L": 256}, lambda v: {"d_ffn": 2 * v}),
     "imputeformer": ("d_model",    {"S": 32,  "M": 64,  "L": 128}, lambda v: {}),
+    "csdi":         ("n_channels", {"S": 32,  "M": 64,  "L": 128}, lambda v: {}),
+    # у MOMENT ёмкость — это размер предобученной модели, а не ширина слоя
+    "moment":       ("size", {"S": "small", "M": "base", "L": "large"}, lambda v: {}),
 }
+
+# Скорости обучения — общие для всех, кроме MOMENT: он дообучается из
+# предобученных весов, и 3e-3 их просто разрушит. Для него сетка того же
+# устройства (три значения через полпорядка), сдвинутая на два порядка вниз.
+ARCH_LRS = {"moment": [1e-5, 3e-5, 1e-4]}
+
+# Батч × накопление для архитектур, у которых нет обученной модели, откуда его
+# взять (base_batch): эффективный батч 16, как у всех.
+BATCH = {"csdi": (8, 2), "moment": (8, 2)}
 # Минуты на ОДНО обучение, по измерениям на RTX 4060 (models/comp/*.json,
 # поле seconds), а не по прикидкам. Прежние числа занижали: у ImputeFormer на
 # компонентах выходило 3.0 ч против заявленных 1.4. Для компонентного входа
@@ -113,6 +125,10 @@ COST_BY_SIZE = {
     "nhits": {"S": 6, "M": 6, "L": 6},
     "tsmixerx": {"S": 5, "M": 6, "L": 6},
     "dlinear": {"S": 5, "M": 5, "L": 5},
+    # ОЦЕНКА, не замер: на RTX 4060 не обучались. CSDI по прежнему прогону
+    # (2.6 ч при n_channels=64, двух слоях), MOMENT — по числу параметров
+    "csdi": {"S": 120, "M": 160, "L": 300},
+    "moment": {"S": 60, "M": 150, "L": 420},
 }
 # Для совместимости: среднее по размерам. Пользоваться стоит COST_BY_SIZE.
 COST_MIN = {a: round(sum(d.values()) / len(d)) for a, d in COST_BY_SIZE.items()}
@@ -135,6 +151,10 @@ COST_MIN = {a: round(sum(d.values()) / len(d)) for a, d in COST_BY_SIZE.items()}
 # срабатывала; теперь это зафиксировано явно, а не держится на отсутствии
 # файлов.
 REUSE = {}
+
+
+def lrs_for(arch):
+    return ARCH_LRS.get(arch, LRS)
 
 
 def kw_for(arch, size):
@@ -161,6 +181,8 @@ def base_batch(arch):
     ещё нет — в моделях прежнего сплита (models/<арх>.json). Молчаливый
     откат на (16, 1) опасен: для SAITS, ImputeFormer и TimesNet это
     переполнение памяти, поэтому про откат говорим вслух."""
+    if arch in BATCH:
+        return BATCH[arch]
     for cand in (os.path.join(MODELS, f"{arch}_{C.SPLIT_NAME}.json"),
                  os.path.join(MODELS, f"{arch}.json"),
                  os.path.join(os.path.dirname(MODELS.rstrip("/\\")), f"{arch}.json")):
@@ -198,6 +220,20 @@ def try_reuse(arch, lr, size, dst_pt):
     return True
 
 
+def train_cmd(arch, lr, size):
+    """Команда обучения ячейки — одна на последовательный грид и на очередь
+    кластера (cluster/jobs.py), чтобы ячейка везде обучалась одинаково."""
+    batch, accum = base_batch(arch)
+    kw = kw_for(arch, size)
+    out = os.path.join(GRID_DIR, cell_name(arch, lr, size) + ".pt")
+    cmd = [sys.executable, "-u", os.path.join(HERE, "bench_train.py"), "--arch", arch,
+           "--steps", str(STEPS), "--batch", str(batch), "--accum", str(accum),
+           "--lr", f"{lr:g}", "--patch", str(PATCH), "--out", out]
+    if kw:
+        cmd += ["--kw"] + [f"{k}={v}" for k, v in kw.items()]
+    return cmd, out
+
+
 def train(arch, lr, size, dry):
     name = cell_name(arch, lr, size)
     out = os.path.join(GRID_DIR, name + ".pt")
@@ -210,13 +246,7 @@ def train(arch, lr, size, dry):
     os.makedirs(GRID_DIR, exist_ok=True)
     if try_reuse(arch, lr, size, out):
         return
-    batch, accum = base_batch(arch)
-    kw = kw_for(arch, size)
-    cmd = [sys.executable, "-u", os.path.join(HERE, "bench_train.py"), "--arch", arch,
-           "--steps", str(STEPS), "--batch", str(batch), "--accum", str(accum),
-           "--lr", f"{lr:g}", "--patch", str(PATCH), "--out", out]
-    if kw:
-        cmd += ["--kw"] + [f"{k}={v}" for k, v in kw.items()]
+    cmd, _ = train_cmd(arch, lr, size)
     t0 = time.time()
     env = dict(os.environ, PYTHONIOENCODING="utf-8")
     logp = out.replace(".pt", ".log")
@@ -250,11 +280,11 @@ def train(arch, lr, size, dry):
 
 def best_lr(arch):
     vals = {}
-    for lr in LRS:
+    for lr in lrs_for(arch):
         p = os.path.join(GRID_DIR, cell_name(arch, lr, "M") + ".json")
         if os.path.exists(p):
             vals[lr] = float(json.load(open(p, encoding="utf-8"))["best_val"])
-    if len(vals) < len(LRS):
+    if len(vals) < len(lrs_for(arch)):
         return None
     return min(vals, key=vals.get)
 
@@ -288,9 +318,10 @@ def _cells(arch):
 
 
 def base_cell(arch):
-    """Ячейка отсчёта: lr 1e-3 при среднем размере, то есть дефолт
-    конструктора. Против неё считаются парные интервалы всех остальных."""
-    return cell_name(arch, 1e-3, "M")
+    """Ячейка отсчёта: средняя скорость сетки (1e-3, у MOMENT своя) при
+    среднем размере, то есть дефолт конструктора. Против неё считаются
+    парные интервалы всех остальных."""
+    return cell_name(arch, lrs_for(arch)[1], "M")
 
 
 def _dump_name(arch, cell):
@@ -411,10 +442,14 @@ def _worse_somewhere(ppath):
     return bad
 
 
-def select():
+def select(archs=None):
+    """archs — подмножество архитектур; строки остальных в grid_selection.csv
+    сохраняются как были (на кластере весов прежних ячеек нет, и выбирать
+    заново их нельзя)."""
     import csv
     rows, chosen = [], {}
-    for arch in GRID:
+    archs = list(archs or GRID)
+    for arch in archs:
         bcell = base_cell(arch)
         cells = _cells(arch)
         if bcell not in cells:
@@ -452,11 +487,16 @@ def select():
                    os.path.join(DATA, f"dump_{arch}_best_{SET}.npz"), f"{arch}_best")
         _sh([os.path.join(HERE, "bench_metrics.py"), "--pred", f"dump_{arch}_best_{SET}.npz",
              "--base", f"dump_{bcell}_{SET}.npz"])
-    with open(os.path.join(MODELS, "grid_selection.csv"), "w", encoding="utf-8", newline="") as f:
+    sel = os.path.join(MODELS, "grid_selection.csv")
+    keep = []
+    if os.path.exists(sel):
+        with open(sel, encoding="utf-8") as f:
+            keep = [r for r in list(csv.reader(f))[1:] if r and r[0] not in archs]
+    with open(sel, "w", encoding="utf-8", newline="") as f:
         w = csv.writer(f)
         w.writerow(["arch", "cell", "best_val_96", "logmean_mae_1024", "gain_vs_base_pct",
                     "worse_than_base_at", "chosen"])
-        w.writerows(rows)
+        w.writerows(keep + rows)
     print(f"\nсохранено: {os.path.join(MODELS, 'grid_selection.csv')}")
     print("победители:", chosen)
 
@@ -469,7 +509,7 @@ def main():
     ap.add_argument("--select", action="store_true")
     a = ap.parse_args()
     if a.select:
-        select()
+        select(a.arch)
         return
     archs = a.arch or list(GRID)
     stages = [a.stage] if a.stage else [1, 2]
@@ -478,7 +518,7 @@ def main():
         print(f"\n=== ступень {st} ===", flush=True)
         for arch in archs:
             if st == 1:
-                for lr in LRS:
+                for lr in lrs_for(arch):
                     name = cell_name(arch, lr, "M")
                     if not os.path.exists(os.path.join(GRID_DIR, name + ".json")) \
                             and (arch, lr, "M") not in REUSE:

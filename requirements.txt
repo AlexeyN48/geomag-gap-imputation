@@ -1,0 +1,15 @@
+# Версии, на которых посчитаны результаты работы (Python 3.12).
+# torch ставится отдельно под CUDA кластера, например:
+#   pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cu128
+torch==2.11.0
+numpy==2.4.4
+scipy==1.15.3
+pandas==2.3.3
+matplotlib==3.10.9
+pypots==1.5
+neuralforecast==3.1.7
+einops==0.8.2
+# MOMENT: кодировщик T5 и загрузка предобученных весов
+transformers==5.15.0
+huggingface_hub==1.27.0
+safetensors==0.8.0

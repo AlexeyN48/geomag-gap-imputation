@@ -2,7 +2,7 @@ r"""Прогон метода по окнам -> дамп предсказани
 
 методы без обучения (mean, locf, linear, pchip, daily)
 
-Запуск:  cd bench_arti/scripts
+Запуск:  cd scripts
          python -u bench_run.py --method pchip --split val
          python -u bench_run.py --method daily --split val --n 256
 """
@@ -176,6 +176,99 @@ def _runs(mask):
     return list(zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)))
 
 
+def _anchor(out, inp, model, edge):
+    """Привязка модельного заполнения к краям каждого пропуска: остаток
+    «данные − модель» берётся медианой по edge наблюдённым минутам слева и
+    справа, между краями проводится прямая, она прибавляется к модели. Так
+    заполнение на краях совпадает с данными, а внутри несёт форму модели.
+    Пропуск у края окна (с одной стороны данных нет) остаётся как есть."""
+    obs = np.isfinite(inp)
+    resid = inp - model
+    have = np.isfinite(resid)
+    for s, e in _runs(~obs):
+        left = np.flatnonzero(have[:s])[-edge:]
+        right = s + np.flatnonzero(have[s:])
+        right = right[right >= e][:edge]
+        if left.size == 0 or right.size == 0:
+            continue
+        r0, r1 = np.median(resid[left]), np.median(resid[right])
+        x0, x1 = left.mean(), right.mean()
+        g = np.arange(s, e)
+        out[g] = model[g] + r0 + (r1 - r0) * (g - x0) / (x1 - x0)
+    return out
+
+
+def fill_seadec(inp, smooth=60, interp="linear"):
+    """Сезонная интерполяция — классическая схема «разложение, интерполяция,
+    сборка» (как na_seadec в imputeTS) с суточным периодом.
+
+    1. Тренд — скользящее суточное среднее по наблюдённым точкам; суточный
+       профиль — среднее отклонений «данные − тренд» в каждой минуте суток по
+       всем суткам окна, сглаженное по кругу скользящим средним в smooth мин.
+    2. Из данных вычитается профиль, ряд без суточного хода интерполируется
+       через пропуск (линейно либо PCHIP), профиль прибавляется обратно.
+    Отличие от dayint: профиль один на всё окно и средний, а не медиана
+    соседних суток в тех же минутах, и уровень через пропуск ведёт
+    интерполяция ряда без сезонности, а не прямая по краям. Видит только
+    своё окно, как и все методы."""
+    n = inp.size
+    obs = np.isfinite(inp)
+    if obs.all() or obs.sum() < 2:
+        return fill_pchip(inp)
+    anom = inp - _level24(inp)
+    ph = np.arange(n) % DAY
+    ok = np.isfinite(anom)
+    s = np.bincount(ph[ok], weights=anom[ok], minlength=DAY)
+    c = np.bincount(ph[ok], minlength=DAY).astype(np.float64)
+    if (c > 0).sum() < DAY // 2:
+        return fill_pchip(inp)                 # профиль не из чего построить
+    prof = np.full(DAY, np.nan)
+    prof[c > 0] = s[c > 0] / c[c > 0]
+    # дыры в профиле (минуты суток, которых в окне нет) — по кругу линейно
+    k = np.flatnonzero(np.isfinite(prof))
+    prof = np.interp(np.arange(DAY), k, prof[k], period=DAY)
+    if smooth > 1:
+        ker = np.ones(smooth) / smooth
+        prof = np.convolve(np.concatenate([prof[-smooth:], prof, prof[:smooth]]),
+                           ker, mode="same")[smooth:-smooth]
+    season = prof[ph]
+    des = inp - season
+    filled = fill_pchip(des) if interp == "pchip" else fill_linear(des)
+    return filled + season
+
+
+def fill_harmreg(inp, n_harm=3, degree=1, edge=5):
+    """Гармоническая регрессия: по наблюдённым точкам окна методом наименьших
+    квадратов подгоняется полином степени degree по времени (медленный дрейф
+    уровня) плюс n_harm гармоник суточного периода (24, 12, 8, … ч), и
+    пропуск заполняется подогнанной кривой.
+
+    Одна кривая на шесть суток не следует за уровнем поля внутри окна, и без
+    привязки заполнение на краях пропуска рвётся с данными. edge > 0
+    привязывает его к краям так же, как dayint (см. _anchor), по медиане
+    остатка в edge наблюдённых минутах с каждой стороны; edge=0 — чистая
+    регрессия без привязки."""
+    n = inp.size
+    obs = np.isfinite(inp)
+    if obs.all() or obs.sum() < 2 * n_harm + degree + 2:
+        return fill_pchip(inp)
+    t = np.arange(n, dtype=np.float64)
+    u = 2.0 * t / (n - 1) - 1.0                # [-1, 1]: полином устойчив
+    cols = [u ** j for j in range(degree + 1)]
+    for k in range(1, n_harm + 1):
+        w = 2.0 * np.pi * k * t / DAY
+        cols += [np.sin(w), np.cos(w)]
+    A = np.stack(cols, axis=1)
+    y0 = np.median(inp[obs])
+    coef, *_ = np.linalg.lstsq(A[obs], inp[obs] - y0, rcond=None)
+    model = A @ coef + y0
+    out = inp.astype(np.float64).copy()
+    out[~obs] = model[~obs]
+    if edge > 0:
+        out = _anchor(out, inp, model, edge)
+    return out
+
+
 METHODS = {"mean": fill_mean, "locf": fill_locf, "linear": fill_linear,
            "pchip": fill_pchip, "daily": fill_daily}
 # сетка параметров «интерполяции плюс суточного хода» — выбор на валидации
@@ -189,6 +282,34 @@ for _k, _w, _s in _GRID:
 # k=5, края 5 мин, сглаживание 240 мин — 8.78 нТл против 11.64 у PCHIP; сетка на
 # плато (k=4 ≈ k=5, сглаживание 120 ≈ 240, 480 хуже). Больше 5 суток окно не вмещает.
 METHODS["dayint"] = lambda inp: fill_dayint(inp, 5, 5, 240)
+
+# Сезонные базлайны: сезонная интерполяция (seadec) и гармоническая регрессия
+# (harmreg). Сетки — ниже, выбор на валидации тем же правилом, что у сетей в
+# гриде: минимум геометрического среднего MAE по всем 12 длинам
+# (bench_select_baseline.py). Победители — под короткими именами seadec и
+# harmreg; именно они идут в тест.
+# первая сетка: сглаживание 1–240 мин; лучший вариант лёг на край (240), поэтому
+# сетка расширена до 720
+for _s in (1, 30, 120, 240, 480, 720):
+    for _ip in ("linear", "pchip"):
+        METHODS[f"seadec_s{_s}_{_ip}"] = (
+            lambda inp, s=_s, ip=_ip: fill_seadec(inp, s, ip))
+# первая сетка: гармоник 1–6, степень 1 и 3, привязка 0/5/60 мин; лучший
+# вариант (3 гармоники, степень 1, привязка 5) лёг на край по степени, поэтому
+# добавлены степень 0 и привязка 15 мин вокруг него
+_HR = [(h, d, e) for h in (1, 2, 3, 4, 6) for d in (1, 3) for e in (0, 5, 60)] +       [(h, 0, 5) for h in (2, 3, 4)] + [(h, 1, 15) for h in (2, 3, 4)]
+for _h, _d, _e in _HR:
+    METHODS[f"harmreg_h{_h}_d{_d}_e{_e}"] = (
+        lambda inp, h=_h, d=_d, e=_e: fill_harmreg(inp, h, d, e))
+# Выбор на валидации (ARS 2023, 1024 окна, геом. среднее MAE по 12 длинам;
+# data/comp/baseline_selection.csv). PCHIP на тех же окнах — 3.663 нТл.
+#   seadec: сглаживание 240 мин, PCHIP — 3.148 нТл; 120 и 480 хуже (3.201,
+#     3.312), оптимум внутри сетки.
+#   harmreg: 3 гармоники, степень 0, привязка 5 мин — 3.486 нТл; степень 1 и 4
+#     гармоники в пределах 0.3 % (плато); привязка 15 и 60 мин и регрессия без
+#     привязки хуже (3.885, 4.835 и 7.048 нТл при степени 1).
+METHODS["seadec"] = lambda inp: fill_seadec(inp, 240, "pchip")
+METHODS["harmreg"] = lambda inp: fill_harmreg(inp, 3, 0, 5)
 
 
 # ------------------------------------------------------------ прогон

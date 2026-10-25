@@ -6,7 +6,7 @@ r"""Аудит подготовленных рядов (bench_prep.py) до лю
   3. значения абсолютные, а не вариации (медиана порядка десятков тысяч нТл);
   4. покрытие и длиннейший непрерывный пропуск — что реально доступно окнам.
 
-Запуск:  cd bench_arti/scripts && python -u bench_audit.py
+Запуск:  cd scripts && python -u bench_audit.py
 """
 import os
 import glob

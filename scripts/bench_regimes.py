@@ -79,7 +79,10 @@ DEFAULT_METHODS = ["unet_best", "saits_best", "timesnet_best",
 PRETTY = {"unet": "U-Net", "saits": "SAITS", "crossformer": "CrossFormer", "timesnet": "TimesNet",
           "imputeformer": "ImputeFormer", "tsmixerx": "TSMixer", "nhits": "N-HiTS",
           "dlinear": "DLinear", "nbeatsx": "N-BEATSx", "segrnn": "SegRNN", "tide": "TiDE",
-          "pchip": "PCHIP", "linear": "Linear", "locf": "LOCF", "mean": "Mean", "daily": "Daily"}
+          "csdi": "CSDI", "moment": "MOMENT",
+          "pchip": "PCHIP", "linear": "Linear", "locf": "LOCF", "mean": "Mean", "daily": "Daily",
+          "dayint": "Суточный шаблон", "seadec": "Сезонная интерполяция",
+          "harmreg": "Гармоническая регрессия"}
 # критические значения Немени, α = 0.05 (Demšar 2006, табл. 5), k = 2..20
 Q05 = {2: 1.960, 3: 2.343, 4: 2.569, 5: 2.728, 6: 2.850, 7: 2.949, 8: 3.031, 9: 3.102,
        10: 3.164, 11: 3.219, 12: 3.268, 13: 3.313, 14: 3.354, 15: 3.391, 16: 3.426,
@@ -100,6 +103,44 @@ def pretty(m):
             base = base[:-len(sp) - 1]
             break
     return PRETTY.get(base, base) + tag
+
+
+def load_regimes(code, split, tag=None):
+    """regimes_<набор>[_<метка>].csv -> словари; None, если файла нет.
+
+    Метка нужна, потому что на одном наборе считается два ранжирования: по
+    модулю (tag='F') и по компонентам (tag='XYZ'), см. --tag. Читает то, что
+    пишет main(); нужна bench_verdict."""
+    nm = C.setname(code, split) + (f"_{tag}" if tag else "")
+    path = os.path.join(C.OUT, f"regimes_{nm}.csv")
+    if not os.path.exists(path):
+        return None
+    R = dict(mae={}, score={}, mae_gm={}, score_gm={}, rank={}, chi2={}, p={}, cd={}, N={})
+    with open(path, encoding="utf-8") as f:
+        for r in csv.DictReader(f):
+            m, k, g, v = r["method"], r["kind"], r["group"], r["value"]
+            if k == "MAE":
+                R["mae"].setdefault(m, {})[int(g)] = float(v)
+            elif k == "Score":
+                R["score"].setdefault(m, {})[int(g)] = float(v)
+            elif k == "MAE_gm":
+                R["mae_gm"].setdefault(m, {})[g] = float(v)
+            elif k == "Score_gm":
+                R["score_gm"].setdefault(m, {})[g] = float(v)
+            elif k == "mean_rank":
+                R["rank"].setdefault(g, {})[m] = float(v)
+            elif k == "friedman_chi2":
+                R["chi2"][g] = float(v)
+            elif k == "friedman_p":
+                R["p"][g] = float(v)
+            elif k == "nemenyi_CD":
+                R["cd"][g] = float(v)
+            elif k == "N_cells":
+                R["N"][g] = int(v)
+    R["methods"] = list(R["mae"])
+    R["lengths"] = sorted(next(iter(R["mae"].values())))
+    R["groups"] = ["все длины"] + [g for g, _ in REGIMES]
+    return R
 
 
 def load_all(methods, setname):
@@ -216,8 +257,7 @@ def main_joined(a):
     if a.base not in methods:
         methods.append(a.base)
     names = [pretty(m) for m in methods]
-    setname = (f"{a.code}_joined" if C.SPLIT_NAME == "f"
-               else f"{a.code}_{C.SPLIT_NAME}_joined")
+    setname = f"{a.code}_{C.SPLIT_NAME}_joined"
     print(f"независимая версия: {a.code}, наборы {', '.join(a.join)} "
           f"(годы {', '.join(str(C.SPLIT[s][0]) for s in a.join)})")
     print("каждая неделя отдана одной длине режима (раздача по возмущённости), "

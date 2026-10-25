@@ -8,7 +8,7 @@ IAGA-2002, разбирает элементы по заголовку (встр
 
 Порядок в пайплайне: bench_prep.py -> bench_gin.py -> всё остальное.
 
-Запуск:  cd bench_arti/scripts
+Запуск:  cd scripts
          python -u bench_gin.py --code ARS --year 2024 --from 2024-09-18 --days 18
          python -u bench_gin.py --code ARS --year 2024 --auto   # найти дыры самому
 """

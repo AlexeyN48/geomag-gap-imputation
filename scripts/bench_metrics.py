@@ -60,7 +60,7 @@ r"""Восемь метрик качества восстановления пл
 она такое. Блок берётся из поля L{L}_block дампа (bench_run.py); для старых
 дампов без него позиции окон восстанавливаются по данным станции.
 
-Запуск:  cd bench_arti/scripts
+Запуск:  cd scripts
          python -u bench_metrics.py --pred dump_pchip_ARS_val.npz
          python -u bench_metrics.py --pred dump_saits_ARS_val.npz
          python -u bench_metrics.py --pred dump_saits_ARS_val.npz --no-ci  # без ДИ, быстрее
@@ -194,8 +194,7 @@ def join_dumps(paths):
     out["lengths"] = ds[0]["lengths"]
     out["method"] = ds[0]["method"]
     code = str(ds[0]["setname"]).split("_")[0]
-    out["setname"] = np.array(f"{code}_{C_SPLIT_NAME}_joined" if C_SPLIT_NAME != "f"
-                              else f"{code}_joined")
+    out["setname"] = np.array(f"{code}_{C_SPLIT_NAME}_joined")
     return out
 
 

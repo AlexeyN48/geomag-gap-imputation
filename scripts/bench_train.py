@@ -3,7 +3,7 @@ r"""Обучение моделей бенчмарка. Бюджет и прав
 Лосс — masked MAE только на искусственных пропусках
 Отбор чекпойнта — по MAE на фиксированном валидационном наборе окон.
 
-Запуск:  cd bench_arti/scripts
+Запуск:  cd scripts
          python -u bench_train.py --arch dlinear --steps 8000
          python -u bench_train.py --arch unet --steps 8000 --batch 8 --accum 2
 """
@@ -230,6 +230,12 @@ def main():
     ap.add_argument("--cfg", default=None,
                     help="json чекпойнта (models/<arch>_best.json): взять оттуда lr, kw, "
                          "steps, batch, accum, patch — всё, что не задано явно в командной строке")
+    ap.add_argument("--seed", type=int, default=C.SEED,
+                    help="зерно обучения: начальные веса и порядок обучающих окон. "
+                         "Валидационный набор и масштаб от него НЕ зависят (у них "
+                         "свои зёрна), поэтому у всех сидов чекпойнт выбирается по "
+                         f"одним и тем же окнам. По умолчанию {C.SEED} — зерно "
+                         "прежних моделей работы")
     args = ap.parse_args()
     if args.cfg:
         # конфигурация-победитель грида: явные аргументы командной строки важнее json
@@ -270,17 +276,22 @@ def main():
     GMIN = 720 if args.long_only else C.GAP_MIN
     pool_years = train if args.gap_pool_code == args.code else C.load_split("train", code=args.gap_pool_code)
     sampler = C.GapSampler(pool_years, gmin=GMIN)
-    rng = np.random.default_rng(C.SEED)
+    rng = np.random.default_rng(args.seed)
     # Начальные веса тоже от фиксированного зерна. Без этого два запуска одной
     # конфигурации отличаются не только тем, что мы меняли, и сравнивать их
-    # нельзя: разница точности смешивается с разницей инициализации.
-    torch.manual_seed(C.SEED)
-    torch.cuda.manual_seed_all(C.SEED)
+    # нельзя: разница точности смешивается с разницей инициализации. Разброс
+    # по сидам меряется сменой --seed: окна валидации при этом те же.
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
 
     M.set_patch(args.patch)          # представление входа до построения
     net = M.build(args.arch, **kw).to(device)
     npar = sum(p.numel() for p in net.parameters())
-    opt = torch.optim.AdamW(net.parameters(), lr=args.lr, weight_decay=args.wd)
+    # замороженные части (у MOMENT в режиме head — весь предобученный кодер)
+    # в оптимизатор не идут
+    opt = torch.optim.AdamW([p for p in net.parameters() if p.requires_grad] or
+                            [torch.nn.Parameter(torch.zeros(1))],
+                            lr=args.lr, weight_decay=args.wd)
 
     def lam(s):
         if s < args.warmup:
@@ -302,10 +313,11 @@ def main():
     name = args.arch
     if args.code != C.CODE:
         name += f"_{args.code}"
-    if C.SPLIT_NAME != "f":
-        name += f"_{C.SPLIT_NAME}"
+    name += f"_{C.SPLIT_NAME}"
     if args.comp:
         name += "_xyz"
+    if args.seed != C.SEED:
+        name += f"_s{args.seed}"
     out = args.out or os.path.join(MODELS, f"{name}.pt")
 
     print(f"устройство={device}  модель={args.arch}  параметров={npar/1e6:.3f} млн  "
@@ -319,6 +331,13 @@ def main():
 
     best, best_step, t0, run, nonfin = np.inf, 0, time.time(), 0.0, 0
     best_leg = [np.inf, 0]
+    if args.steps == 0:
+        # Без обучения: модель как есть (MOMENT zero-shot — предобученные веса
+        # без дообучения). Чекпойнт пишется, чтобы прогон и метрики шли тем же
+        # путём, что у обученных моделей.
+        best = validate(net, vals, scale, device)
+        M.save(out, net, args.arch, scale, kw, 0, best)
+        print(f"{0:>7}{'—':>10}{best:>11.3f}")
     for step in range(1, args.steps + 1):
         opt.zero_grad(set_to_none=True)
         for _ in range(args.accum):
@@ -384,7 +403,7 @@ def main():
                        channels=int(M.NCH), comp=bool(args.comp),
                        kw=kw, patch=args.patch, window=int(C.W), long_only=args.long_only,
                        code=args.code, gap_pool_code=args.gap_pool_code, cfg=args.cfg,
-                       amp="bfloat16" if args.amp else "float32", seed=int(C.SEED),
+                       amp="bfloat16" if args.amp else "float32", seed=int(args.seed),
                        size=size, best_step=int(best_step),
                        seconds=round(time.time() - t0)), f, ensure_ascii=False, indent=1)
 

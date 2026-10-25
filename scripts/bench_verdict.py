@@ -26,7 +26,7 @@ import itertools
 import numpy as np
 
 import bench_common as C
-import bench_doc as D
+from bench_regimes import load_regimes
 
 FIN = ["unet", "saits", "timesnet", "imputeformer", "tsmixerx"]
 ALL = FIN + ["nhits", "dlinear", "nbeatsx", "segrnn", "tide"]
@@ -205,7 +205,7 @@ def score_regime(net, code, split, lengths, base="pchip"):
 def U1(split):
     out = {}
     for inp, tag in (("модуль", "Fbest"), ("компоненты", "XYZbest")):
-        R = D.regimes("ARS", split, tag)
+        R = load_regimes("ARS", split, tag)
         rk = R["rank"]["все длины"]
         nets = sorted((m for m in rk if m not in ("pchip", "linear")), key=rk.get)
         top = {m.replace("_best_xyz", "").replace("_best", "") for m in nets[:5]}
@@ -243,7 +243,7 @@ def U3(split):
 
 
 def U4(split):
-    R, X = D.regimes("ARS", split, "Fbest"), D.regimes("ARS", split, "XYZbest")
+    R, X = load_regimes("ARS", split, "Fbest"), load_regimes("ARS", split, "XYZbest")
     rk = R["rank"]["все длины"]
     res, outs = [], []
     for g in ("120–1000 мин", ">1000 мин"):
@@ -420,7 +420,7 @@ def U15(split):
         y = []
         for c in codes:
             tf, tx = TAG[c]
-            R, X = D.regimes(c, split, tf), D.regimes(c, split, tx)
+            R, X = load_regimes(c, split, tf), load_regimes(c, split, tx)
             y.append(np.mean([X["mae_gm"][model(a, c, "_xyz")][g] / R["mae_gm"][model(a, c)][g] - 1
                               for a in FIN]))
         r, pp, pn = perm_p([AXIS_DOM[c] for c in codes], y)

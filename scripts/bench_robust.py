@@ -18,7 +18,7 @@ r"""Проверка устойчивости выводов к способу �
 результат зависит от произвола в методе счёта, и выбирать «который красивее»
 нельзя: так делается подгонка.
 
-Запуск:  cd bench_arti/scripts
+Запуск:  cd scripts
          python -u bench_robust.py --code ARS --split val
          IGF_SPLIT=comp python -u bench_robust.py --code ARS --split val --pairs
 """
