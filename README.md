@@ -256,21 +256,19 @@ pip install -r requirements.txt
 export IGF_SPLIT=comp
 ```
 
-**2. Данные.** Годовые ряды передаются архивом (ссылку даёт автор). Скрипт
-скачивает его, распаковывает в `data/` и сверяет каждый файл с
+**2. Данные и веса.** Передаются файлами: архив данных `geomag_data.zip` и
+папка с предобученными весами MOMENT `pretrained/`.
+
+Архив распаковывается в `data/`, и каждый файл сверяется с
 `data/DATA_MANIFEST.json` побитово; при расхождении обучение запускать нельзя.
 
 ```bash
-python -u scripts/data_archive.py fetch --url "<ссылка на архив>"
+python -u scripts/data_archive.py fetch --file geomag_data.zip
 ```
 
-Если на вычислительных узлах нет интернета — скачать архив на узле входа и
-передать файлом: `fetch --file geomag_data.zip`. Туда же заранее веса MOMENT
-(~2 ГБ, в `models/pretrained/`):
-
-```bash
-python -u scripts/get_weights.py
-```
+Папку весов положить в `models/` так, чтобы получилось
+`models/pretrained/MOMENT-1-{small,base,large}/` — в каждой `config.json` и
+`model.safetensors`.
 
 **3. Конвейер.** Этапы идут по порядку: каждый генерирует список заданий
 (`scripts/bench_jobs.py` → `cluster/jobs/<этап>.jsonl`), очередь
@@ -279,27 +277,26 @@ python -u scripts/get_weights.py
 
 ```bash
 bash cluster/run_all.sh                    # все этапы подряд
-bash cluster/run_all.sh seeds seeddumps    # только перечисленные
+bash cluster/run_all.sh seeds seedval      # только перечисленные
 sbatch cluster/slurm_stage.sh seeds        # один этап под SLURM
 ```
 
+Порядок этапов повторяет логику работы: всё, что выбирается, выбирается на
+валидации; тестовые годы считаются последним этапом.
+
 | этап | ресурс | что делает | заданий |
 |---|---|---|---|
-| `baselines` | CPU | PCHIP, Linear, суточный шаблон, сезонная интерполяция, гармоническая регрессия на всех станциях и наборах | 90 |
+| `baselines` | CPU | PCHIP, Linear, суточный шаблон, сезонная интерполяция, гармоническая регрессия на валидации всех станций | 30 |
 | `grid1`, `grid2` | GPU | подбор CSDI и MOMENT (5 обучений на архитектуру, как у остальных) | 6 + 4 |
 | `griddumps`, `select` | GPU, CPU | ячейки на валидации, выбор победителя → `models/comp/<арх>_best.json` | 10 + 1 |
 | `seeds` | GPU | все 12 сетей на ARS, оба входа, сиды 1234, 2345, 3456, 4567, 5678 | 120 |
-| `seeddumps` | GPU | их прогоны: ARS (val, test, test_hard) и перенос финалистов на 5 станций | ~860 |
+| `seedval` | GPU | их прогоны на валидации ARS | 120 |
+| `finalists` | CPU | пятёрка по среднему рангу на валидации, усреднённому по сидам → `data/comp/seeds/finalists.json` | 1 |
 | `stations` | GPU | финалисты, обученные на каждой из 5 станций, оба входа, 5 сидов | 250 |
-| `stationdumps` | GPU | их прогоны: своя станция и все 6 станций | 3250 |
+| `stationval` | GPU | их прогоны на валидации своей станции | 250 |
+| `test` | GPU, CPU | тестовые годы: базлайны и все сети на ARS, перенос финалистов ARS на станции, модели станций на всех 6 станциях | ~3800 |
 | `summary` | CPU | среднее и разброс по сидам → `data/comp/seeds_summary.csv` | 1 |
 
 Сид меняет только начальные веса и порядок обучающих окон: окна валидации и
 тестов у всех сидов одни и те же, поэтому разброс относится к обучению.
 Вывод CSDI дорогой (50 шагов диффузии на окно) — его прогоны самые долгие.
-
-**4. Что вернуть автору.** Небольшие файлы, всё остальное воспроизводится:
-`models/comp/**/*.json`, `models/comp/grid_selection.csv`,
-`data/comp/baseline_selection.csv`, `data/comp/seeds_summary.csv` и
-`cluster/logs/`. Дампы (`data/comp/**/*.npz`) нужны для парных сравнений —
-их лучше сохранить у себя.
