@@ -209,9 +209,10 @@ scripts/
   bench_components.py   точность каждой оси X, Y, Z
   bench_examples_comp.py  рисунки «типичное окно»
   bench_select_baseline.py  выбор параметров сезонных базлайнов на валидации
+  bench_finalists.py пятёрка финалистов по валидации, усреднённой по сидам
   bench_seeds.py     среднее и разброс по сидам
   bench_jobs.py      задания для кластера по этапам
-  data_archive.py    архив данных: pack у автора, fetch + сверка у исполнителя
+  data_archive.py    архив данных: pack — собрать, fetch — распаковать и сверить
   get_weights.py     предобученные веса MOMENT в models/pretrained/
 cluster/      run_queue.py (очередь на 8 GPU), run_all.sh, slurm_stage.sh
 data/comp/    metrics_*.csv, regimes_*.csv, verdict_*.json; дампы предсказаний не в git
