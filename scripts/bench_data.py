@@ -160,9 +160,13 @@ def file_state(p):
 
 
 def scan():
+    """Годовые файлы <код>_<год>.npz. Резервные копии шагов сборки
+    (*_before_align.npz и т. п.) — не данные: их нет в архиве данных, и
+    сверка не должна требовать их от того, кто данные скачал."""
     out = {}
     for f in sorted(os.listdir(C.DATA)):
-        if f.endswith(".npz") and "_" in f and f.split("_")[0] in STATIONS:
+        if f.endswith(".npz") and "_" in f and f.split("_")[0] in STATIONS \
+                and "_before" not in f:
             out[f] = file_state(os.path.join(C.DATA, f))
     return out
 

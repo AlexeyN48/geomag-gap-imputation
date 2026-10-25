@@ -1,6 +1,6 @@
 r"""Препроцессинг INTERMAGNET XML -> минутные ряды F для бенчмарка.
 
-Запуск:  cd bench_arti/scripts && python -u bench_prep.py
+Запуск:  cd scripts && python -u bench_prep.py
          python -u bench_prep.py --code ARS --years 2013 2014 2015
 """
 import os

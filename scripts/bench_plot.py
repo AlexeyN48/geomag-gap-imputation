@@ -2,7 +2,7 @@ r"""Сводные рисунки бенчмарка: все методы на �
 
 Читает готовые дампы и таблицы метрик.
 
-Запуск:  cd bench_arti/scripts && python -u bench_plot.py --split val
+Запуск:  cd scripts && python -u bench_plot.py --split val
 """
 import os
 import re

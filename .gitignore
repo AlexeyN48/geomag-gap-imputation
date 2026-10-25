@@ -20,6 +20,18 @@ data/dump_*.npz
 # копии на 500 МБ ушли в историю.
 data/**/*.npz
 
+# Конфигурации прежнего разбиения «f» в корне models/ — из работы выведены.
+# Модели текущего разбиения лежат в models/comp/ и этим правилом не задеты.
+/models/*.json
+
+# архив данных (data_archive.py pack/fetch) и недокачанные куски
+data/*.zip
+*.part
+# архивы в корне проекта
+/*.zip
+# предобученные веса (MOMENT) — скачиваются get_weights
+models/pretrained/
+
 # копия полученных рисунков для просмотра/пересылки (оригиналы — в figures/)
 pictures/
 
@@ -27,3 +39,6 @@ pictures/
 # правке текста отчёта; сам отчёт в report/ тоже не в git)
 scripts/bench_report.py
 scripts/bench_doc.py
+# очередь кластера: списки заданий и логи — рабочие файлы запуска
+cluster/jobs/
+cluster/logs/
