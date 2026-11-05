@@ -125,7 +125,7 @@ def train_jobs(archs, codes, seeds):
                     "--cfg", best_cfg(arch), "--seed", s, "--out", pt]
         if comp:
             cmd.append("--comp")
-        out.append(job(name, cmd, pt[:-3] + ".json", True))
+        out.append(job(name, cmd, [pt, pt[:-3] + ".json"], True))
     return out
 
 
@@ -151,7 +151,7 @@ def st_grid1(a):
     for arch in a.archs or NEW:
         for lr in G.lrs_for(arch):
             cmd, pt = G.train_cmd(arch, lr, "M")
-            out.append(job(G.cell_name(arch, lr, "M"), cmd, pt[:-3] + ".json", True))
+            out.append(job(G.cell_name(arch, lr, "M"), cmd, [pt, pt[:-3] + ".json"], True))
     return out
 
 
@@ -164,7 +164,7 @@ def st_grid2(a):
         print(f"  {arch}: лучшая скорость ступени 1 = {lr:g}")
         for size in ("S", "L"):
             cmd, pt = G.train_cmd(arch, lr, size)
-            out.append(job(G.cell_name(arch, lr, size), cmd, pt[:-3] + ".json", True))
+            out.append(job(G.cell_name(arch, lr, size), cmd, [pt, pt[:-3] + ".json"], True))
     return out
 
 

@@ -329,6 +329,12 @@ def resolve(method, ckpt=None, code=None, split=None, comp_sink=None):
         raise SystemExit(f"нет ни метода, ни чекпойнта «{method}»")
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     net, ck = BM.load(path, dev)
+    # Fix diffusion sampling separately from the checkpoint's training seed.
+    inference_seed = int(os.environ.get("IGF_INFERENCE_SEED", C.SEED))
+    torch.manual_seed(inference_seed)
+    if dev == "cuda":
+        torch.cuda.manual_seed_all(inference_seed)
+    print(f"inference_seed={inference_seed}")
     if int(ck.get("NCH", 1)) == 1:
         return (lambda inps, starts, years:
                 BM.fill_many(net, inps, starts, ck["scale"], dev)), ck
@@ -438,6 +444,13 @@ def _fields_to_npz(fields_by_L):
     return out
 
 
+def _atomic_dump(path, **fields):
+    tmp = str(path) + ".tmp"
+    with open(tmp, "wb") as f:
+        np.savez_compressed(f, **fields)
+    os.replace(tmp, path)
+
+
 def _save_dump(args, code, lengths, fields_by_L):
     out = _fields_to_npz(fields_by_L)
     setname = C.setname(code, args.split)
@@ -449,7 +462,8 @@ def _save_dump(args, code, lengths, fields_by_L):
     out_dir = getattr(args, "out_dir", None) or C.OUT
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, f"dump_{args.method}_{setname}.npz")
-    np.savez_compressed(path, **out)
+    out["inference_seed"] = np.array(int(os.environ.get("IGF_INFERENCE_SEED", C.SEED)), np.int64)
+    _atomic_dump(path, **out)
     print(f"сохранено: {path}  ({os.path.getsize(path) / 1e6:.1f} МБ)")
 
 
@@ -561,7 +575,8 @@ def run(args):
         out["lengths"] = np.array(lengths, np.int32)
         out["margin"] = np.array(C.MARGIN, np.int32)
         out["seed"] = np.array(C.SEED, np.int32)
-        np.savez_compressed(args.out, **out)
+        out["inference_seed"] = np.array(int(os.environ.get("IGF_INFERENCE_SEED", C.SEED)), np.int64)
+        _atomic_dump(args.out, **out)
         print(f"\nсохранено: {args.out}  ({os.path.getsize(args.out) / 1e6:.1f} МБ)")
     else:
         _save_dump(args, args.code, lengths, fields_by_L)

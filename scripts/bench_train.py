@@ -11,6 +11,7 @@ import os
 import time
 import json
 import argparse
+import random
 import numpy as np
 import torch
 
@@ -281,6 +282,8 @@ def main():
     # конфигурации отличаются не только тем, что мы меняли, и сравнивать их
     # нельзя: разница точности смешивается с разницей инициализации. Разброс
     # по сидам меряется сменой --seed: окна валидации при этом те же.
+    random.seed(args.seed)
+    np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
@@ -331,6 +334,41 @@ def main():
 
     best, best_step, t0, run, nonfin = np.inf, 0, time.time(), 0.0, 0
     best_leg = [np.inf, 0]
+    resume_enabled = os.environ.get("IGF_AUTO_RESUME") == "1"
+    resume_path = out + ".resume"
+    signature = dict(args=vars(args), split=C.SPLIT, window=C.W, kw=kw)
+    start_step, elapsed_before = 0, 0.0
+    if resume_enabled and os.path.exists(resume_path):
+        state = torch.load(resume_path, map_location="cpu", weights_only=False)
+        if state["signature"] != signature:
+            raise SystemExit("Resume configuration differs from saved configuration")
+        net.load_state_dict(state["model"])
+        opt.load_state_dict(state["optimizer"])
+        sched.load_state_dict(state["scheduler"])
+        rng.bit_generator.state = state["rng"]
+        random.setstate(state["python_rng"])
+        np.random.set_state(state["numpy_rng"])
+        torch.set_rng_state(state["torch_rng"])
+        if device == "cuda":
+            torch.cuda.set_rng_state_all(state["cuda_rng"])
+        start_step = state["step"]
+        best, best_step, best_leg = state["best"], state["best_step"], state["best_leg"]
+        run, nonfin = state["run"], state["nonfin"]
+        elapsed_before = state["seconds"]
+        if best_step and not os.path.exists(out):
+            raise SystemExit("Resume exists but best checkpoint is missing")
+        print(f"Resuming after step {start_step}", flush=True)
+        del state
+
+    def save_resume(step):
+        if resume_enabled:
+            M.atomic_save(dict(signature=signature, model=net.state_dict(),
+                optimizer=opt.state_dict(), scheduler=sched.state_dict(), step=step,
+                rng=rng.bit_generator.state, python_rng=random.getstate(),
+                numpy_rng=np.random.get_state(), torch_rng=torch.get_rng_state(),
+                cuda_rng=torch.cuda.get_rng_state_all() if device == "cuda" else [],
+                best=best, best_step=best_step, best_leg=best_leg, run=run,
+                nonfin=nonfin, seconds=elapsed_before + time.time() - t0), resume_path)
     if args.steps == 0:
         # Без обучения: модель как есть (MOMENT zero-shot — предобученные веса
         # без дообучения). Чекпойнт пишется, чтобы прогон и метрики шли тем же
@@ -338,7 +376,7 @@ def main():
         best = validate(net, vals, scale, device)
         M.save(out, net, args.arch, scale, kw, 0, best)
         print(f"{0:>7}{'—':>10}{best:>11.3f}")
-    for step in range(1, args.steps + 1):
+    for step in range(start_step + 1, args.steps + 1):
         opt.zero_grad(set_to_none=True)
         for _ in range(args.accum):
             X, msk, Y, A = make_batch(train, sampler, scale, rng, args.batch,
@@ -376,6 +414,8 @@ def main():
             if v < best:
                 best, best_step = v, step
                 M.save(out, net, args.arch, scale, kw, step, v)
+        if step % args.every == 0 or step == args.steps:
+            save_resume(step)
 
     print(f"\nготово. лучший val MAE = {best:.3f} нТл, чекпойнт {out} (шаг {best_step})")
     if vals_leg is not None:
@@ -396,7 +436,10 @@ def main():
                     break
     except Exception:
         pass
-    with open(out.replace(".pt", ".json"), "w", encoding="utf-8") as f:
+    if not np.isfinite(best) or not os.path.exists(out):
+        raise SystemExit("No finite validation score/checkpoint; training is not complete")
+    result_json = out.replace(".pt", ".json")
+    with open(result_json + ".tmp", "w", encoding="utf-8") as f:
         json.dump(dict(arch=args.arch, params=npar, steps=args.steps,
                        batch=args.batch, accum=args.accum, lr=args.lr,
                        best_val=best, scale=np.atleast_1d(scale).astype(float).tolist(),
@@ -405,7 +448,10 @@ def main():
                        code=args.code, gap_pool_code=args.gap_pool_code, cfg=args.cfg,
                        amp="bfloat16" if args.amp else "float32", seed=int(args.seed),
                        size=size, best_step=int(best_step),
-                       seconds=round(time.time() - t0)), f, ensure_ascii=False, indent=1)
+                       seconds=round(elapsed_before + time.time() - t0)), f, ensure_ascii=False, indent=1)
+    os.replace(result_json + ".tmp", result_json)
+    if resume_enabled and os.path.exists(resume_path):
+        os.remove(resume_path)
 
 
 if __name__ == "__main__":
