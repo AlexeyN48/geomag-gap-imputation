@@ -361,6 +361,10 @@ sbatch cluster/slurm_stage.sh seeds        # один этап под SLURM
 Дообучение MOMENT на станциях входит в этап `stations`: пятёрка финалистов
 включает MOMENT, а готовые задания пропускаются. Для многочасовых запусков
 можно включить возобновление с контрольной точки: `export IGF_AUTO_RESUME=1`.
+Вход можно ограничить ключом `--inputs F` (этапы `seeds`, `seedval`, `stations`,
+`stationval`, `test`): MOMENT на одной A100 учится 15.7 ч при входе F и 46.2 ч при XYZ,
+так что `python -u scripts/bench_jobs.py stations --finalists moment --inputs F`
+втрое дешевле полного запуска.
 
 **4. Интервалы и вердикты** (после `stationval`; нужны дампы `baselines`):
 
