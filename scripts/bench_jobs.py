@@ -51,6 +51,7 @@ NEW = ["csdi", "moment"]
 ALL_ARCHS = list(G.GRID)
 N = 1024
 SEED_MODELS = os.path.join(C.MODELS, "seeds")
+COMPS = (False, True)      # входы: модуль F, компоненты XYZ; сужается ключом --inputs
 SEED_DUMPS = os.path.join(C.OUT, "seeds")
 FINALISTS_JSON = os.path.join(SEED_DUMPS, "finalists.json")
 
@@ -112,7 +113,7 @@ def models(archs, codes, seeds):
     """(имя, путь .pt, станция обучения) по всем сочетаниям и обоим входам."""
     for arch in ready_archs(archs):
         for code in codes:
-            for comp in (False, True):
+            for comp in COMPS:
                 for s in seeds:
                     name = seed_name(arch, code, comp, s)
                     yield arch, code, comp, s, name, os.path.join(SEED_MODELS, name + ".pt")
@@ -125,7 +126,7 @@ def train_jobs(archs, codes, seeds):
                     "--cfg", best_cfg(arch), "--seed", s, "--out", pt]
         if comp:
             cmd.append("--comp")
-        out.append(job(name, cmd, pt[:-3] + ".json", True))
+        out.append(job(name, cmd, [pt, pt[:-3] + ".json"], True))
     return out
 
 
@@ -151,7 +152,7 @@ def st_grid1(a):
     for arch in a.archs or NEW:
         for lr in G.lrs_for(arch):
             cmd, pt = G.train_cmd(arch, lr, "M")
-            out.append(job(G.cell_name(arch, lr, "M"), cmd, pt[:-3] + ".json", True))
+            out.append(job(G.cell_name(arch, lr, "M"), cmd, [pt, pt[:-3] + ".json"], True))
     return out
 
 
@@ -164,7 +165,7 @@ def st_grid2(a):
         print(f"  {arch}: лучшая скорость ступени 1 = {lr:g}")
         for size in ("S", "L"):
             cmd, pt = G.train_cmd(arch, lr, size)
-            out.append(job(G.cell_name(arch, lr, size), cmd, pt[:-3] + ".json", True))
+            out.append(job(G.cell_name(arch, lr, size), cmd, [pt, pt[:-3] + ".json"], True))
     return out
 
 
@@ -243,7 +244,12 @@ def main():
     ap.add_argument("--finalists", nargs="+", default=None,
                     help="финалисты вручную вместо выбранных этапом finalists")
     ap.add_argument("--seeds", type=int, nargs="+", default=C.SEEDS)
+    ap.add_argument("--inputs", nargs="+", choices=["F", "XYZ"], default=["F", "XYZ"],
+                    help="какие входы обучать и считать (для seeds, seedval, stations, stationval, test); "
+                         "по умолчанию оба")
     a = ap.parse_args()
+    global COMPS
+    COMPS = tuple(i == "XYZ" for i in ("F", "XYZ") if i in a.inputs)
 
     jobs = STAGES[a.stage](a)
     os.makedirs(JOBS, exist_ok=True)

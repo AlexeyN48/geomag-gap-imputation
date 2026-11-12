@@ -593,12 +593,20 @@ def build(name, **kw):
     return ARCH[name](**kw)
 
 
+def atomic_save(obj, path):
+    # Same filesystem: an interrupted write cannot replace a good checkpoint.
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp = path + ".tmp"
+    torch.save(obj, tmp)
+    os.replace(tmp, path)
+
+
 def save(path, net, name, scale, kw, step, val):
     # при NCH > 1 масштаб покомпонентный, скаляром его не записать
     scale = float(scale) if np.ndim(scale) == 0 else np.asarray(scale, np.float32)
     # extra — то, без чего архитектуру не построить из чекпойнта без сети:
     # у MOMENT это конфигурация T5 (веса и так лежат в state)
-    torch.save(dict(state=net.state_dict(), arch=name, scale=scale,
+    atomic_save(dict(state=net.state_dict(), arch=name, scale=scale,
                     kw=kw, step=int(step), val=float(val), P=P, NCH=NCH, W=int(C.W),
                     extra=getattr(net, "ckpt_extra", None)), path)
 

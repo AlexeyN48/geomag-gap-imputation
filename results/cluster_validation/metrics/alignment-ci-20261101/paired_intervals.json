@@ -1,0 +1,1938 @@
+{
+  "complete": true,
+  "rows": [
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": 1.3036962384311503,
+      "ci95": [
+        -0.9770971810527274,
+        3.524925667732129
+      ],
+      "simultaneous_ci95": [
+        -2.8010901572726863,
+        5.408482634134987
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": 0.2024862852986979,
+      "ci95": [
+        0.03182395585561489,
+        0.3840337843410264
+      ],
+      "simultaneous_ci95": [
+        -0.11395856086690942,
+        0.5189311314643053
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 240,
+      "metric": "peak_rate_error",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": -0.013194173177083334,
+      "ci95": [
+        -0.028924680583582104,
+        0.004540115498833539
+      ],
+      "simultaneous_ci95": [
+        -0.04382289425630996,
+        0.01743454790214329
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "peak_rate_error",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": -0.0009404839409722052,
+      "ci95": [
+        -0.0024680334705562395,
+        0.0006489270811440831
+      ],
+      "simultaneous_ci95": [
+        -0.0037066926317951823,
+        0.0018257247498507717
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": 0.20553380330403642,
+      "ci95": [
+        -0.5458218125127656,
+        0.8101418651513281
+      ],
+      "simultaneous_ci95": [
+        -1.0329911347006158,
+        1.4440587413086885
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": -0.0021925297489872996,
+      "ci95": [
+        -0.01849321399011002,
+        0.01972234014042132
+      ],
+      "simultaneous_ci95": [
+        -0.03662359078478998,
+        0.03223853128681538
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": 1.9814466660944914,
+      "ci95": [
+        0.6116250623522622,
+        3.2605211812438752
+      ],
+      "simultaneous_ci95": [
+        -0.44101704435894606,
+        4.403910376547929
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": 0.22145461257245724,
+      "ci95": [
+        0.02878515482206613,
+        0.43283523775319177
+      ],
+      "simultaneous_ci95": [
+        -0.14399553524634462,
+        0.5869047603912592
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 1440,
+      "metric": "peak_rate_error",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": -0.03523763020833333,
+      "ci95": [
+        -0.06408634367572787,
+        -0.01665108769991583
+      ],
+      "simultaneous_ci95": [
+        -0.07824447425635357,
+        0.007769213839686914
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "peak_rate_error",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": -0.0008269585503472124,
+      "ci95": [
+        -0.003164209692822173,
+        0.0021346333821614886
+      ],
+      "simultaneous_ci95": [
+        -0.0054897100207253425,
+        0.003835792920030918
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": -0.7769701922381368,
+      "ci95": [
+        -1.4889916859254217,
+        -0.061401759040295226
+      ],
+      "simultaneous_ci95": [
+        -2.079536761314474,
+        0.5255963768382005
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": 0.00111408139452537,
+      "ci95": [
+        -0.00717661525390033,
+        0.011320542381508023
+      ],
+      "simultaneous_ci95": [
+        -0.016108230667093316,
+        0.018336393456144056
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": -0.037173492443158124,
+      "ci95": [
+        -1.1085122500267428,
+        1.0285108419859708
+      ],
+      "simultaneous_ci95": [
+        -1.9724635456299309,
+        1.8981165607436146
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": -0.15232809151443236,
+      "ci95": [
+        -0.5444847091503551,
+        0.26812476850426276
+      ],
+      "simultaneous_ci95": [
+        -0.8947652136262719,
+        0.5901090305974072
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 240,
+      "metric": "peak_rate_error",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": -0.003590494791666676,
+      "ci95": [
+        -0.010763800504093406,
+        0.003708109537760407
+      ],
+      "simultaneous_ci95": [
+        -0.01672336372928396,
+        0.009542374145950609
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "peak_rate_error",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": 0.0006968858506944412,
+      "ci95": [
+        -0.0018076696325231574,
+        0.0030137504163638695
+      ],
+      "simultaneous_ci95": [
+        -0.003635106971812309,
+        0.0050288786732011915
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": 0.2819745042588976,
+      "ci95": [
+        -0.2978497524712565,
+        0.753651175435337
+      ],
+      "simultaneous_ci95": [
+        -0.6901512124602518,
+        1.254100220978047
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 25,
+      "block_days": 14,
+      "estimate": -0.01850430241337527,
+      "ci95": [
+        -0.05386070601590378,
+        0.01688132211611898
+      ],
+      "simultaneous_ci95": [
+        -0.08302101344745111,
+        0.04601240862070058
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": 0.728594835436503,
+      "ci95": [
+        -0.1584215001460465,
+        1.6152002481596461
+      ],
+      "simultaneous_ci95": [
+        -0.9070438268184116,
+        2.3642334976914174
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": -0.16522518403497072,
+      "ci95": [
+        -0.4627650212570678,
+        0.10986645324380277
+      ],
+      "simultaneous_ci95": [
+        -0.694482694143965,
+        0.3640323260740235
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 1440,
+      "metric": "peak_rate_error",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": -0.011012369791666643,
+      "ci95": [
+        -0.020293294503704623,
+        -0.003291691543317875
+      ],
+      "simultaneous_ci95": [
+        -0.026524194310526213,
+        0.004499454727192927
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "peak_rate_error",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": 0.0011593967013888852,
+      "ci95": [
+        -0.0014561844240640089,
+        0.004189663398215582
+      ],
+      "simultaneous_ci95": [
+        -0.004034568157830344,
+        0.006353361560608115
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": -0.716508551703559,
+      "ci95": [
+        -1.3590397201253392,
+        -0.04501896462452822
+      ],
+      "simultaneous_ci95": [
+        -1.9187755709078835,
+        0.48575846750076557
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 24,
+      "block_days": 14,
+      "estimate": 0.0015789964463975765,
+      "ci95": [
+        -0.045840277356655426,
+        0.05129533801280044
+      ],
+      "simultaneous_ci95": [
+        -0.08674164890558869,
+        0.08989964179838383
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 60,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.0170501708984375,
+      "ci95": [
+        -0.029130319097416823,
+        -0.00706277665057881
+      ],
+      "simultaneous_ci95": [
+        -0.03744278048329509,
+        0.003342438686420087
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 60,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.003349687065950837,
+      "ci95": [
+        -0.004305043949459863,
+        -0.0024600982076755265
+      ],
+      "simultaneous_ci95": [
+        -0.00502373565765849,
+        -0.001675638474243184
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 60,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.1603796826955213,
+      "ci95": [
+        -0.9000656030837454,
+        0.4777365773927961
+      ],
+      "simultaneous_ci95": [
+        -1.418316058918527,
+        1.0975566935274845
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.007564735412597651,
+      "ci95": [
+        -0.017508536565456263,
+        0.001425075198378952
+      ],
+      "simultaneous_ci95": [
+        -0.02476324807961301,
+        0.009633777254417709
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.0011552240901086062,
+      "ci95": [
+        -0.0014670433935619015,
+        -0.0008705736073450468
+      ],
+      "simultaneous_ci95": [
+        -0.0016982583197386253,
+        -0.000612189860478587
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.06504270257907688,
+      "ci95": [
+        -0.4028264239022892,
+        0.25207832318157714
+      ],
+      "simultaneous_ci95": [
+        -0.6626213445674288,
+        0.5325359394092751
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": 0.0035249731275770425,
+      "ci95": [
+        -0.0019031329002636474,
+        0.009375467622410406
+      ],
+      "simultaneous_ci95": [
+        -0.00670678419849944,
+        0.013756730453653526
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.0003255708800816297,
+      "ci95": [
+        -0.00039970078096050065,
+        -0.00025823267245322944
+      ],
+      "simultaneous_ci95": [
+        -0.00045578644482793915,
+        -0.0001953553153353203
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.04641414492743514,
+      "ci95": [
+        -0.17923125012763322,
+        0.05736607587844069
+      ],
+      "simultaneous_ci95": [
+        -0.26186055810806363,
+        0.16903226825319334
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 4320,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.0009054607815212511,
+      "ci95": [
+        -0.004345104517597428,
+        0.002619689751332667
+      ],
+      "simultaneous_ci95": [
+        -0.007296738029777878,
+        0.005485816466735376
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 4320,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.00028310750537779885,
+      "ci95": [
+        -0.00034620659417894725,
+        -0.00022333813374841494
+      ],
+      "simultaneous_ci95": [
+        -0.0003962012088854473,
+        -0.0001700138018701504
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 4320,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": 0.02796202939055079,
+      "ci95": [
+        -0.01066762731342653,
+        0.08451663817677278
+      ],
+      "simultaneous_ci95": [
+        -0.05990206246964368,
+        0.11582612125074525
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 60,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.014433542887369793,
+      "ci95": [
+        -0.03887270655776516,
+        0.011269717730415534
+      ],
+      "simultaneous_ci95": [
+        -0.06003795794169754,
+        0.031170872166957953
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 60,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.003985096298485256,
+      "ci95": [
+        -0.005243675822495004,
+        -0.0029288978699672876
+      ],
+      "simultaneous_ci95": [
+        -0.006101768446077233,
+        -0.0018684241508932792
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 60,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -3.033466958946472,
+      "ci95": [
+        -4.654680333730989,
+        -1.7439363983046088
+      ],
+      "simultaneous_ci95": [
+        -5.69428109143732,
+        -0.37265282645562303
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": 0.013602231343587253,
+      "ci95": [
+        -0.013840435445810727,
+        0.04129729369255434
+      ],
+      "simultaneous_ci95": [
+        -0.03658029898500172,
+        0.06378476167217623
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.0015070541095391619,
+      "ci95": [
+        -0.0019111093997063366,
+        -0.0011619975177137914
+      ],
+      "simultaneous_ci95": [
+        -0.0021904885930954495,
+        -0.0008236196259828741
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.4341041758954147,
+      "ci95": [
+        -0.9236990386418122,
+        0.026563457272940207
+      ],
+      "simultaneous_ci95": [
+        -1.3075440533606408,
+        0.4393357015698113
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": 0.023222232394748285,
+      "ci95": [
+        -0.003245867510697722,
+        0.05158309695595195
+      ],
+      "simultaneous_ci95": [
+        -0.027288350186279273,
+        0.07373281497577584
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.0011472444441493945,
+      "ci95": [
+        -0.001356640648492545,
+        -0.0009712689704389255
+      ],
+      "simultaneous_ci95": [
+        -0.0014991448782670103,
+        -0.0007953440100317787
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.15876173500907878,
+      "ci95": [
+        -0.36410197862627736,
+        0.07794739551511581
+      ],
+      "simultaneous_ci95": [
+        -0.5598716845094066,
+        0.24234821449124902
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 4320,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.020949030275698055,
+      "ci95": [
+        -0.05243991744064632,
+        0.005720489727634697
+      ],
+      "simultaneous_ci95": [
+        -0.07477334689146212,
+        0.032875286340066014
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 4320,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.0011797316323519042,
+      "ci95": [
+        -0.0013896831402729782,
+        -0.0009848834566730936
+      ],
+      "simultaneous_ci95": [
+        -0.0015504785396969177,
+        -0.0008089847250068907
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 4320,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 26,
+      "block_days": 14,
+      "estimate": -0.045029985395498844,
+      "ci95": [
+        -0.11621733775489713,
+        0.021520050569414625
+      ],
+      "simultaneous_ci95": [
+        -0.16864065646038856,
+        0.07858068566939089
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 1.3036962384311503,
+      "ci95": [
+        -0.8719673520729876,
+        3.3527337934935013
+      ],
+      "simultaneous_ci95": [
+        -2.6650725890733056,
+        5.272465065935606
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.2024862852986979,
+      "ci95": [
+        0.01244145009680956,
+        0.40984737697677315
+      ],
+      "simultaneous_ci95": [
+        -0.1541698125367717,
+        0.5591423831341675
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 240,
+      "metric": "peak_rate_error",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.013194173177083334,
+      "ci95": [
+        -0.02828439050099206,
+        0.0034531132006208986
+      ],
+      "simultaneous_ci95": [
+        -0.0427621507249754,
+        0.016373804370808726
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "peak_rate_error",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.0009404839409722052,
+      "ci95": [
+        -0.0024822510180829986,
+        0.000805541507781527
+      ],
+      "simultaneous_ci95": [
+        -0.003902162826825732,
+        0.0020211949448813212
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.20553380330403642,
+      "ci95": [
+        -0.5194272132847316,
+        0.7889984020720174
+      ],
+      "simultaneous_ci95": [
+        -1.0293008669416537,
+        1.4403684735497264
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.0021925297489872996,
+      "ci95": [
+        -0.01884864581394493,
+        0.01996481999383874
+      ],
+      "simultaneous_ci95": [
+        -0.03829962457851358,
+        0.03391456508053898
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 1.9814466660944914,
+      "ci95": [
+        0.379680890457755,
+        3.4315727335559196
+      ],
+      "simultaneous_ci95": [
+        -0.8833232711173953,
+        4.846216603306378
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.22145461257245724,
+      "ci95": [
+        0.018453145506685396,
+        0.42311239996856104
+      ],
+      "simultaneous_ci95": [
+        -0.1562279343193046,
+        0.5991371594642191
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 1440,
+      "metric": "peak_rate_error",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.03523763020833333,
+      "ci95": [
+        -0.0653268809185606,
+        -0.016147914341517872
+      ],
+      "simultaneous_ci95": [
+        -0.08109153515942255,
+        0.0106162747427559
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "peak_rate_error",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.0008269585503472124,
+      "ci95": [
+        -0.003067490357076886,
+        0.002357412495325571
+      ],
+      "simultaneous_ci95": [
+        -0.0057608360961255425,
+        0.004106918995431118
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "unet",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.7769701922381368,
+      "ci95": [
+        -1.6030193810644524,
+        -0.007055292557560369
+      ],
+      "simultaneous_ci95": [
+        -2.264799841452124,
+        0.7108594569758503
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.00111408139452537,
+      "ci95": [
+        -0.006423977692828233,
+        0.01148440819451496
+      ],
+      "simultaneous_ci95": [
+        -0.015874779633545107,
+        0.018102942422595848
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.037173492443158124,
+      "ci95": [
+        -1.138530827361209,
+        1.1051554314969276
+      ],
+      "simultaneous_ci95": [
+        -2.1470615559486084,
+        2.0727145710622925
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.15232809151443236,
+      "ci95": [
+        -0.5187371214144583,
+        0.26166681101914907
+      ],
+      "simultaneous_ci95": [
+        -0.8912693208596497,
+        0.586613137830785
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 240,
+      "metric": "peak_rate_error",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.003590494791666676,
+      "ci95": [
+        -0.012061901238486097,
+        0.0043395163287114225
+      ],
+      "simultaneous_ci95": [
+        -0.01908118725564375,
+        0.011900197672310396
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "peak_rate_error",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.0006968858506944412,
+      "ci95": [
+        -0.0014104912171235666,
+        0.002722136441180561
+      ],
+      "simultaneous_ci95": [
+        -0.003255193644562874,
+        0.0046489653459517565
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.2819745042588976,
+      "ci95": [
+        -0.17226505397706732,
+        0.7236961721955256
+      ],
+      "simultaneous_ci95": [
+        -0.564084117441912,
+        1.1280331259597072
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.01850430241337527,
+      "ci95": [
+        -0.05764200330389184,
+        0.022801812545469292
+      ],
+      "simultaneous_ci95": [
+        -0.09449547076489245,
+        0.05748686593814192
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.728594835436503,
+      "ci95": [
+        -0.3000928702634652,
+        1.6878281749603337
+      ],
+      "simultaneous_ci95": [
+        -1.1317403843387646,
+        2.5889300552117707
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "percentage points",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.16522518403497072,
+      "ci95": [
+        -0.4693908032287348,
+        0.10770619170154512
+      ],
+      "simultaneous_ci95": [
+        -0.7037161336876905,
+        0.373265765617749
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 1440,
+      "metric": "peak_rate_error",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.011012369791666643,
+      "ci95": [
+        -0.02061845251070065,
+        -0.002872713473637533
+      ],
+      "simultaneous_ci95": [
+        -0.027639280036073695,
+        0.005614540452740409
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "peak_rate_error",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT/min",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.0011593967013888852,
+      "ci95": [
+        -0.0016350707681246632,
+        0.004093914493446828
+      ],
+      "simultaneous_ci95": [
+        -0.004206283791169711,
+        0.006525077193947482
+      ]
+    },
+    {
+      "family": "event_distance",
+      "model": "moment",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "5min_from_edge minus near_center",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.716508551703559,
+      "ci95": [
+        -1.3910818939302967,
+        0.002447868524245055
+      ],
+      "simultaneous_ci95": [
+        -2.026563885649865,
+        0.5935467822427472
+      ]
+    },
+    {
+      "family": "event_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control; all12placements averaged within event",
+      "units": "nT",
+      "n": 96,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.0015789964463975765,
+      "ci95": [
+        -0.031936256209008466,
+        0.04581063273072848
+      ],
+      "simultaneous_ci95": [
+        -0.07040208993084522,
+        0.07356008282364036
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 60,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.0170501708984375,
+      "ci95": [
+        -0.02874313243303147,
+        -0.005557491620169898
+      ],
+      "simultaneous_ci95": [
+        -0.03835275851918174,
+        0.004252416722306737
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 60,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.003349687065950837,
+      "ci95": [
+        -0.004304809160064215,
+        -0.0024253109314792813
+      ],
+      "simultaneous_ci95": [
+        -0.0051202608427720064,
+        -0.0015791132891296673
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 60,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.1603796826955213,
+      "ci95": [
+        -0.9679561105026038,
+        0.436176031242921
+      ],
+      "simultaneous_ci95": [
+        -1.4777619626844836,
+        1.157002597293441
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.007564735412597651,
+      "ci95": [
+        -0.01839750672811443,
+        0.0013538407402841034
+      ],
+      "simultaneous_ci95": [
+        -0.025893941723243268,
+        0.010764470898047968
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.0011552240901086062,
+      "ci95": [
+        -0.0014710003529685304,
+        -0.0008404955654028094
+      ],
+      "simultaneous_ci95": [
+        -0.0017446744737923767,
+        -0.0005657737064248355
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.06504270257907688,
+      "ci95": [
+        -0.4266940993461741,
+        0.23673161305244123
+      ],
+      "simultaneous_ci95": [
+        -0.6938230824164285,
+        0.5637376772582748
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.0035249731275770425,
+      "ci95": [
+        -0.0015053886785230844,
+        0.009144603401312732
+      ],
+      "simultaneous_ci95": [
+        -0.006378306386819789,
+        0.013428252641973875
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.0003255708800816297,
+      "ci95": [
+        -0.00040910198800515847,
+        -0.000249304022719414
+      ],
+      "simultaneous_ci95": [
+        -0.00047645031806061583,
+        -0.0001746914421026436
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.04641414492743514,
+      "ci95": [
+        -0.17642232129891144,
+        0.05771306665121747
+      ],
+      "simultaneous_ci95": [
+        -0.2650950157009919,
+        0.17226672584612165
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 4320,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.0009054607815212511,
+      "ci95": [
+        -0.0047832087449483805,
+        0.0028345883117626668
+      ],
+      "simultaneous_ci95": [
+        -0.008101441600984846,
+        0.006290520037942344
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 4320,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.00028310750537779885,
+      "ci95": [
+        -0.00035576719572783037,
+        -0.00021894574353627724
+      ],
+      "simultaneous_ci95": [
+        -0.0004115464487801998,
+        -0.0001546685619753979
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "unet",
+      "length": 4320,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.02796202939055079,
+      "ci95": [
+        -0.006522833964421977,
+        0.07988343981369483
+      ],
+      "simultaneous_ci95": [
+        -0.05369966575847003,
+        0.1096237245395716
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 60,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.014433542887369793,
+      "ci95": [
+        -0.03799030049771876,
+        0.010958474441728783
+      ],
+      "simultaneous_ci95": [
+        -0.060192938280669,
+        0.031325852505929425
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 60,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.003985096298485256,
+      "ci95": [
+        -0.004982505429606111,
+        -0.002974982360954325
+      ],
+      "simultaneous_ci95": [
+        -0.0058557774800946805,
+        -0.0021144151168758316
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 60,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -3.033466958946472,
+      "ci95": [
+        -4.656467517531906,
+        -1.7523883822467228
+      ],
+      "simultaneous_ci95": [
+        -5.781246851004027,
+        -0.2856870668889169
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.013602231343587253,
+      "ci95": [
+        -0.013150452057829163,
+        0.04183635351650359
+      ],
+      "simultaneous_ci95": [
+        -0.038570396112762056,
+        0.06577485879993657
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.0015070541095391619,
+      "ci95": [
+        -0.0018827841621607384,
+        -0.0012086929833692705
+      ],
+      "simultaneous_ci95": [
+        -0.0021331331173523533,
+        -0.0008809751017259706
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 240,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.4341041758954147,
+      "ci95": [
+        -0.9964326704311326,
+        0.0671488530578935
+      ],
+      "simultaneous_ci95": [
+        -1.442205278493026,
+        0.5739969267021965
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": 0.023222232394748285,
+      "ci95": [
+        -0.0024244658582967525,
+        0.051813223326439985
+      ],
+      "simultaneous_ci95": [
+        -0.02786468942745219,
+        0.07430915421694875
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.0011472444441493945,
+      "ci95": [
+        -0.0013457539836279602,
+        -0.00096152166319823
+      ],
+      "simultaneous_ci95": [
+        -0.0015081044007752074,
+        -0.0007863844875235816
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 1440,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.15876173500907878,
+      "ci95": [
+        -0.3825213190704048,
+        0.07900703269064878
+      ],
+      "simultaneous_ci95": [
+        -0.5864149717503104,
+        0.2688915017321528
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 4320,
+      "metric": "mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.020949030275698055,
+      "ci95": [
+        -0.053337068989056755,
+        0.008410219803006104
+      ],
+      "simultaneous_ci95": [
+        -0.07875496583169769,
+        0.036856905280301576
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 4320,
+      "metric": "d5_mae",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "nT/min",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.0011797316323519042,
+      "ci95": [
+        -0.001386496859692904,
+        -0.0009625545582211394
+      ],
+      "simultaneous_ci95": [
+        -0.0015822920279015286,
+        -0.0007771712368022796
+      ]
+    },
+    {
+      "family": "validation_loss",
+      "model": "moment",
+      "length": 4320,
+      "metric": "capture_pct",
+      "contrast": "increment_weight5 minus MAE_control",
+      "units": "percentage points",
+      "n": 256,
+      "calendar_blocks": 13,
+      "block_days": 28,
+      "estimate": -0.045029985395498844,
+      "ci95": [
+        -0.10094249850216386,
+        0.021957067171623375
+      ],
+      "simultaneous_ci95": [
+        -0.15915102211796123,
+        0.06909105132696355
+      ]
+    }
+  ],
+  "bootstrap_replicates": 10000,
+  "seed": 20261101,
+  "method": "Paired calendar-block bootstrap crossed with resampling of five matched training seeds; shared draws across48contrasts. Pointwise percentile95 and approximate simultaneous95 max-standardized-deviation intervals. 14-day primary,28-day sensitivity.",
+  "estimands": {
+    "events": "Equal distinct-episode weight; first average left/right or all12placements within an event",
+    "validation": "Equal selected-window weight; capture is ratio of averaged signed peak-rate difference to averaged true peak rate"
+  },
+  "cautions": [
+    "All data are ARS2023 validation. Exploratory, no independent confirmation.",
+    "Five training seeds and one calendar year limit inference; CI is conditional on these event and window samples.",
+    "Changing gap placement also changes which other values are hidden; not an isolated causal intervention on visibility.",
+    "Simultaneous intervals address these48specified contrasts, not the entire history of research choices."
+  ]
+}
